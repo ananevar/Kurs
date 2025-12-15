@@ -133,7 +133,6 @@ C:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\J
 C:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\obj\Debug\net8.0\staticwebassets.build.json.cache
 C:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\obj\Debug\net8.0\staticwebassets.development.json
 C:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\obj\Debug\net8.0\staticwebassets.build.endpoints.json
-C:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt
 C:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\obj\Debug\net8.0\JKH.csproj.Up2Date
 C:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\obj\Debug\net8.0\JKH.dll
 C:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\obj\Debug\net8.0\refint\JKH.dll
@@ -290,3 +289,5 @@ C:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\J
 C:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\bin\Debug\net8.0\tr\Microsoft.CodeAnalysis.Scripting.resources.dll
 C:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\bin\Debug\net8.0\zh-Hans\Microsoft.CodeAnalysis.Scripting.resources.dll
 C:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\bin\Debug\net8.0\zh-Hant\Microsoft.CodeAnalysis.Scripting.resources.dll
+c:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\obj\Debug\net8.0\JKH.sourcelink.json
+C:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt

@@ -1,0 +1,49 @@
+﻿@page "/streets/create"
+@using Microsoft.EntityFrameworkCore
+@using JKH.Models
+@inject IDbContextFactory<JKH.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create</PageTitle>
+
+<h1>Create</h1>
+
+<h2>Street</h2>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <EditForm method="post" Model="Street" OnValidSubmit="AddStreet" FormName="create" Enhance>
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" role="alert"/>
+            <div class="mb-3">
+                <label for="name" class="form-label">Name:</label> 
+                <InputText id="name" @bind-Value="Street.Name" class="form-control" /> 
+                <ValidationMessage For="() => Street.Name" class="text-danger" /> 
+            </div>        
+            <div class="mb-3">
+                <label for="districtid" class="form-label">DistrictId:</label> 
+                <InputNumber id="districtid" @bind-Value="Street.DistrictId" class="form-control" /> 
+                <ValidationMessage For="() => Street.DistrictId" class="text-danger" /> 
+            </div>        
+            <button type="submit" class="btn btn-primary">Create</button>
+        </EditForm>
+    </div>
+</div>
+
+<div>
+    <a href="/streets">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromForm]
+    private Street Street { get; set; } = new();
+
+    // To protect from overposting attacks, see https://learn.microsoft.com/aspnet/core/blazor/forms/#mitigate-overposting-attacks.
+    private async Task AddStreet()
+    {
+        using var context = DbFactory.CreateDbContext();
+        context.Streets.Add(Street);
+        await context.SaveChangesAsync();
+        NavigationManager.NavigateTo("/streets");
+    }
+}

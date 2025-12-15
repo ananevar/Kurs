@@ -1,0 +1,49 @@
+﻿@page "/districts/create"
+@using Microsoft.EntityFrameworkCore
+@using JKH.Models
+@inject IDbContextFactory<JKH.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create</PageTitle>
+
+<h1>Create</h1>
+
+<h2>District</h2>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <EditForm method="post" Model="District" OnValidSubmit="AddDistrict" FormName="create" Enhance>
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" role="alert"/>
+            <div class="mb-3">
+                <label for="name" class="form-label">Name:</label> 
+                <InputText id="name" @bind-Value="District.Name" class="form-control" /> 
+                <ValidationMessage For="() => District.Name" class="text-danger" /> 
+            </div>        
+            <div class="mb-3">
+                <label for="cityid" class="form-label">CityId:</label> 
+                <InputNumber id="cityid" @bind-Value="District.CityId" class="form-control" /> 
+                <ValidationMessage For="() => District.CityId" class="text-danger" /> 
+            </div>        
+            <button type="submit" class="btn btn-primary">Create</button>
+        </EditForm>
+    </div>
+</div>
+
+<div>
+    <a href="/districts">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromForm]
+    private District District { get; set; } = new();
+
+    // To protect from overposting attacks, see https://learn.microsoft.com/aspnet/core/blazor/forms/#mitigate-overposting-attacks.
+    private async Task AddDistrict()
+    {
+        using var context = DbFactory.CreateDbContext();
+        context.Districts.Add(District);
+        await context.SaveChangesAsync();
+        NavigationManager.NavigateTo("/districts");
+    }
+}

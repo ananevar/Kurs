@@ -1,0 +1,48 @@
+﻿@page "/buildings/details"
+@using Microsoft.EntityFrameworkCore
+@using JKH.Models
+@inject IDbContextFactory<JKH.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Details</PageTitle>
+
+<h1>Details</h1>
+
+<div>
+    <h2>Building</h2>
+    <hr />
+    @if (building is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else {
+        <dl class="row">
+            <dt class="col-sm-2">Number</dt>
+            <dd class="col-sm-10">@building.Number</dd>
+            <dt class="col-sm-2">StreetId</dt>
+            <dd class="col-sm-10">@building.StreetId</dd>
+        </dl>
+        <div>
+            <a href="@($"/buildings/edit?id={building.Id}")">Edit</a> |
+            <a href="@($"/buildings")">Back to List</a>
+        </div>
+    }
+</div>
+
+@code {
+    private Building? building;
+
+    [SupplyParameterFromQuery]
+    private int Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        building = await context.Buildings.FirstOrDefaultAsync(m => m.Id == Id);
+
+        if (building is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+    }
+}

@@ -1,0 +1,91 @@
+﻿@page "/properties"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using JKH.Data
+@using JKH.Models
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+@attribute [Authorize]
+
+<h3>Мои объекты (квартиры)</h3>
+
+<p>
+    <a class="btn btn-primary" href="/properties/create">Добавить квартиру</a>
+</p>
+
+@if (_loading)
+{
+    <p>Загрузка...</p>
+}
+else if (_items.Count == 0)
+{
+    <div class="alert alert-info">У вас пока нет добавленных квартир.</div>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Адрес</th>
+                <th>Квартира</th>
+                <th style="width:220px;"></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var p in _items)
+            {
+                <tr>
+                    <td>
+                        @p.Building.Street.District.City.Name,
+                        @p.Building.Street.District.Name,
+                        @p.Building.Street.Name,
+                        дом @p.Building.Number
+                    </td>
+                    <td>@p.Apartment</td>
+                    <td class="text-end">
+                        <a class="btn btn-sm btn-outline-primary" href="@($"/properties/edit/{p.Id}")">Изменить</a>
+                        <a class="btn btn-sm btn-outline-danger ms-2" href="@($"/properties/delete/{p.Id}")">Удалить</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private bool _loading = true;
+    private List<Property> _items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _loading = false;
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        _items = await db.Properties
+            .AsNoTracking()
+            .Where(p => p.UserId == userId)
+            .Include(p => p.Building)
+                .ThenInclude(b => b.Street)
+                    .ThenInclude(s => s.District)
+                        .ThenInclude(d => d.City)
+            .OrderBy(p => p.Building.Street.District.City.Name)
+            .ThenBy(p => p.Building.Street.District.Name)
+            .ThenBy(p => p.Building.Street.Name)
+            .ThenBy(p => p.Building.Number)
+            .ThenBy(p => p.Apartment)
+            .ToListAsync();
+
+        _loading = false;
+    }
+}

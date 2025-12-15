@@ -1,0 +1,37 @@
+﻿@page "/buildings"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using JKH.Models
+@using JKH.Data
+@implements IAsyncDisposable
+@inject IDbContextFactory<JKH.Data.ApplicationDbContext> DbFactory
+
+<PageTitle>Index</PageTitle>
+
+<h1>Index</h1>
+
+<p>
+    <a href="buildings/create">Create New</a>
+</p>
+
+<QuickGrid Class="table" Items="context.Buildings">
+    <PropertyColumn Property="building => building.Number" />
+    <PropertyColumn Property="building => building.StreetId" />
+
+    <TemplateColumn Context="building">
+        <a href="@($"buildings/edit?id={building.Id}")">Edit</a> |
+        <a href="@($"buildings/details?id={building.Id}")">Details</a> |
+        <a href="@($"buildings/delete?id={building.Id}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>
+
+@code {
+    private ApplicationDbContext context = default!;
+
+    protected override void OnInitialized()
+    {
+        context = DbFactory.CreateDbContext();
+    }
+
+    public async ValueTask DisposeAsync() => await context.DisposeAsync();
+}

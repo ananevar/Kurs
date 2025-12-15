@@ -1,10 +1,11 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using JKH.Models;
+using JKH.Data;
 
 namespace JKH.Data
 {
-    public class ApplicationDbContext : IdentityDbContext
+    public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
             : base(options)
@@ -17,19 +18,22 @@ namespace JKH.Data
         public DbSet<Street> Streets => Set<Street>();
         public DbSet<Building> Buildings => Set<Building>();
 
-        // Main user object
+        // User properties (apartments)
         public DbSet<Property> Properties => Set<Property>();
 
-        // Если у тебя есть счета/строки/счетчики — раскомментируй и добавь модели
-        // public DbSet<Bill> Bills => Set<Bill>();
-        // public DbSet<BillLine> BillLines => Set<BillLine>();
-        // public DbSet<Meter> Meters => Set<Meter>();
+        // Billing & meters
+        public DbSet<Meter> Meters => Set<Meter>();
+        public DbSet<MeterReading> MeterReadings => Set<MeterReading>();
+        public DbSet<ServiceType> ServiceTypes => Set<ServiceType>();
+        public DbSet<Tariff> Tariffs => Set<Tariff>();
+        public DbSet<Bill> Bills => Set<Bill>();
+        public DbSet<BillLine> BillLines => Set<BillLine>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
 
-            // City: unique name
+            // -------- City --------
             builder.Entity<City>()
                 .Property(x => x.Name)
                 .HasMaxLength(200)
@@ -39,7 +43,7 @@ namespace JKH.Data
                 .HasIndex(x => x.Name)
                 .IsUnique();
 
-            // District: unique within City
+            // -------- District --------
             builder.Entity<District>()
                 .Property(x => x.Name)
                 .HasMaxLength(200)
@@ -55,7 +59,7 @@ namespace JKH.Data
                 .HasIndex(x => new { x.CityId, x.Name })
                 .IsUnique();
 
-            // Street: unique within District
+            // -------- Street --------
             builder.Entity<Street>()
                 .Property(x => x.Name)
                 .HasMaxLength(200)
@@ -71,7 +75,7 @@ namespace JKH.Data
                 .HasIndex(x => new { x.DistrictId, x.Name })
                 .IsUnique();
 
-            // Building: unique (StreetId + Number)
+            // -------- Building --------
             builder.Entity<Building>()
                 .Property(x => x.Number)
                 .HasMaxLength(50)
@@ -87,10 +91,10 @@ namespace JKH.Data
                 .HasIndex(x => new { x.StreetId, x.Number })
                 .IsUnique();
 
-            // Property: user + building + apartment
+            // -------- Property --------
             builder.Entity<Property>()
                 .Property(x => x.UserId)
-                .HasMaxLength(450) // стандартная длина ключа Identity user id
+                .HasMaxLength(450)
                 .IsRequired();
 
             builder.Entity<Property>()
@@ -108,7 +112,60 @@ namespace JKH.Data
                 .HasIndex(x => new { x.UserId, x.BuildingId, x.Apartment })
                 .IsUnique();
 
-            // Если у тебя Bill/BillLine и была рекурсия — позже настроим JSON / навигации отдельно
+            // -------- Meter --------
+            builder.Entity<Meter>()
+                .HasOne(x => x.Property)
+                .WithMany()
+                .HasForeignKey(x => x.PropertyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<Meter>()
+                .HasOne(x => x.ServiceType)
+                .WithMany(x => x.Meters)
+                .HasForeignKey(x => x.ServiceTypeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // -------- MeterReading --------
+            builder.Entity<MeterReading>()
+                .HasOne(x => x.Meter)
+                .WithMany(x => x.Readings)
+                .HasForeignKey(x => x.MeterId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<MeterReading>()
+                .HasIndex(x => new { x.MeterId, x.ReadingDate })
+                .IsUnique();
+
+            // -------- Tariff --------
+            builder.Entity<Tariff>()
+                .HasOne(x => x.ServiceType)
+                .WithMany(x => x.Tariffs)
+                .HasForeignKey(x => x.ServiceTypeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // -------- Bill --------
+            builder.Entity<Bill>()
+                .HasOne(x => x.Property)
+                .WithMany(x => x.Bills)
+                .HasForeignKey(x => x.PropertyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<Bill>()
+                .HasIndex(x => new { x.PropertyId, x.Period })
+                .IsUnique();
+
+            // -------- BillLine --------
+            builder.Entity<BillLine>()
+                .HasOne(x => x.Bill)
+                .WithMany(x => x.Lines)
+                .HasForeignKey(x => x.BillId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<BillLine>()
+                .HasOne(x => x.Meter)
+                .WithMany(x => x.BillLines)
+                .HasForeignKey(x => x.MeterId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

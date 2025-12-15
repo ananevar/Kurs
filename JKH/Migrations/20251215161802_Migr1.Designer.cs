@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace JKH.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20251215104026_AddUtilityDomain")]
-    partial class AddUtilityDomain
+    [Migration("20251215161802_Migr1")]
+    partial class Migr1
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -100,7 +100,6 @@ namespace JKH.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<decimal>("Total")
-                        .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -118,21 +117,18 @@ namespace JKH.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<decimal>("Amount")
-                        .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("BillId")
                         .HasColumnType("INTEGER");
 
                     b.Property<decimal>("Consumption")
-                        .HasPrecision(18, 3)
                         .HasColumnType("TEXT");
 
                     b.Property<int?>("CurrReadingId")
                         .HasColumnType("INTEGER");
 
                     b.Property<decimal>("CurrValue")
-                        .HasPrecision(18, 3)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("MeterId")
@@ -142,21 +138,81 @@ namespace JKH.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<decimal>("PrevValue")
-                        .HasPrecision(18, 3)
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("TariffPrice")
-                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BillId");
+
                     b.HasIndex("MeterId");
 
-                    b.HasIndex("BillId", "MeterId")
+                    b.ToTable("BillLines");
+                });
+
+            modelBuilder.Entity("JKH.Models.Building", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("StreetId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StreetId", "Number")
                         .IsUnique();
 
-                    b.ToTable("BillLines");
+                    b.ToTable("Buildings");
+                });
+
+            modelBuilder.Entity("JKH.Models.City", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Cities");
+                });
+
+            modelBuilder.Entity("JKH.Models.District", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("CityId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CityId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Districts");
                 });
 
             modelBuilder.Entity("JKH.Models.Meter", b =>
@@ -209,7 +265,6 @@ namespace JKH.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("Value")
-                        .HasPrecision(18, 3)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -226,23 +281,28 @@ namespace JKH.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("Address")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Apartment")
+                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("BuildingId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("UserId")
                         .IsRequired()
+                        .HasMaxLength(450)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BuildingId");
+
+                    b.HasIndex("UserId", "BuildingId", "Apartment")
+                        .IsUnique();
 
                     b.ToTable("Properties");
                 });
@@ -271,6 +331,28 @@ namespace JKH.Migrations
                     b.ToTable("ServiceTypes");
                 });
 
+            modelBuilder.Entity("JKH.Models.Street", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DistrictId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DistrictId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Streets");
+                });
+
             modelBuilder.Entity("JKH.Models.Tariff", b =>
                 {
                     b.Property<int>("Id")
@@ -278,7 +360,6 @@ namespace JKH.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<decimal>("PricePerUnit")
-                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("ServiceTypeId")
@@ -430,7 +511,7 @@ namespace JKH.Migrations
                     b.HasOne("JKH.Models.Property", "Property")
                         .WithMany("Bills")
                         .HasForeignKey("PropertyId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Property");
@@ -447,7 +528,7 @@ namespace JKH.Migrations
                     b.HasOne("JKH.Models.Meter", "Meter")
                         .WithMany("BillLines")
                         .HasForeignKey("MeterId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Bill");
@@ -455,18 +536,40 @@ namespace JKH.Migrations
                     b.Navigation("Meter");
                 });
 
+            modelBuilder.Entity("JKH.Models.Building", b =>
+                {
+                    b.HasOne("JKH.Models.Street", "Street")
+                        .WithMany("Buildings")
+                        .HasForeignKey("StreetId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Street");
+                });
+
+            modelBuilder.Entity("JKH.Models.District", b =>
+                {
+                    b.HasOne("JKH.Models.City", "City")
+                        .WithMany("Districts")
+                        .HasForeignKey("CityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("City");
+                });
+
             modelBuilder.Entity("JKH.Models.Meter", b =>
                 {
                     b.HasOne("JKH.Models.Property", "Property")
-                        .WithMany("Meters")
+                        .WithMany()
                         .HasForeignKey("PropertyId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("JKH.Models.ServiceType", "ServiceType")
                         .WithMany("Meters")
                         .HasForeignKey("ServiceTypeId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Property");
@@ -485,12 +588,34 @@ namespace JKH.Migrations
                     b.Navigation("Meter");
                 });
 
+            modelBuilder.Entity("JKH.Models.Property", b =>
+                {
+                    b.HasOne("JKH.Models.Building", "Building")
+                        .WithMany("Properties")
+                        .HasForeignKey("BuildingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Building");
+                });
+
+            modelBuilder.Entity("JKH.Models.Street", b =>
+                {
+                    b.HasOne("JKH.Models.District", "District")
+                        .WithMany("Streets")
+                        .HasForeignKey("DistrictId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("District");
+                });
+
             modelBuilder.Entity("JKH.Models.Tariff", b =>
                 {
                     b.HasOne("JKH.Models.ServiceType", "ServiceType")
                         .WithMany("Tariffs")
                         .HasForeignKey("ServiceTypeId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("ServiceType");
@@ -552,6 +677,21 @@ namespace JKH.Migrations
                     b.Navigation("Lines");
                 });
 
+            modelBuilder.Entity("JKH.Models.Building", b =>
+                {
+                    b.Navigation("Properties");
+                });
+
+            modelBuilder.Entity("JKH.Models.City", b =>
+                {
+                    b.Navigation("Districts");
+                });
+
+            modelBuilder.Entity("JKH.Models.District", b =>
+                {
+                    b.Navigation("Streets");
+                });
+
             modelBuilder.Entity("JKH.Models.Meter", b =>
                 {
                     b.Navigation("BillLines");
@@ -562,8 +702,6 @@ namespace JKH.Migrations
             modelBuilder.Entity("JKH.Models.Property", b =>
                 {
                     b.Navigation("Bills");
-
-                    b.Navigation("Meters");
                 });
 
             modelBuilder.Entity("JKH.Models.ServiceType", b =>
@@ -571,6 +709,11 @@ namespace JKH.Migrations
                     b.Navigation("Meters");
 
                     b.Navigation("Tariffs");
+                });
+
+            modelBuilder.Entity("JKH.Models.Street", b =>
+                {
+                    b.Navigation("Buildings");
                 });
 #pragma warning restore 612, 618
         }

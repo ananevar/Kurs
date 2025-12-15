@@ -1,0 +1,102 @@
+﻿@page "/properties/delete/{Id:int}"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using JKH.Data
+@using JKH.Models
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+@attribute [Authorize]
+
+<h3>Удалить квартиру</h3>
+
+@if (_loading)
+{
+    <p>Загрузка...</p>
+}
+else if (_notFound)
+{
+    <div class="alert alert-warning">Объект не найден.</div>
+    <a class="btn btn-link" href="/properties">Назад</a>
+}
+else
+{
+    <div class="alert alert-danger">
+        Вы уверены, что хотите удалить объект:
+        <b>@_address</b>, кв. <b>@_apartment</b>?
+    </div>
+
+    <button class="btn btn-danger" @onclick="ConfirmDelete">Удалить</button>
+    <a class="btn btn-link" href="/properties">Отмена</a>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger mt-3">@_error</div>
+    }
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private bool _loading = true;
+    private bool _notFound = false;
+
+    private string _address = "";
+    private string _apartment = "";
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var entity = await db.Properties
+            .AsNoTracking()
+            .Where(p => p.Id == Id && p.UserId == userId)
+            .Include(p => p.Building).ThenInclude(b => b.Street).ThenInclude(s => s.District).ThenInclude(d => d.City)
+            .FirstOrDefaultAsync();
+
+        if (entity is null)
+        {
+            _notFound = true;
+            _loading = false;
+            return;
+        }
+
+        _apartment = entity.Apartment;
+        _address = $"{entity.Building.Street.District.City.Name}, {entity.Building.Street.District.Name}, {entity.Building.Street.Name}, дом {entity.Building.Number}";
+        _loading = false;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        _error = null;
+
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var entity = await db.Properties.FirstOrDefaultAsync(p => p.Id == Id && p.UserId == userId);
+
+        if (entity is null)
+        {
+            _notFound = true;
+            return;
+        }
+
+        db.Properties.Remove(entity);
+
+        try
+        {
+            await db.SaveChangesAsync();
+            Nav.NavigateTo("/properties");
+        }
+        catch (DbUpdateException)
+        {
+            _error = "Нельзя удалить: возможно есть связанные данные (счета/счетчики).";
+        }
+    }
+}

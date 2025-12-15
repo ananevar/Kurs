@@ -1,0 +1,40 @@
+﻿@page "/cities"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using JKH.Models
+@using JKH.Data
+@implements IAsyncDisposable
+@inject IDbContextFactory<JKH.Data.ApplicationDbContext> DbFactory
+
+<PageTitle>Index</PageTitle>
+
+<h1>Index</h1>
+
+<p>
+    <a href="cities/create">Create New</a>
+</p>
+
+<QuickGrid Class="table" Items="context.Cities">
+    <PropertyColumn Title="Город" Property="city => city.Name" />
+    <PropertyColumn Title="Количество районов" Property="city => city.Districts!.Count()" />
+    <PropertyColumn Title="Количество улиц" Property="city => city.Name" />
+    <PropertyColumn Title="Количество домов" Property="city => city.Name" />
+
+    <TemplateColumn Context="city">
+        <a href="@($"districts?id={city.Id}")">Районы</a>
+        <a href="@($"cities/edit?id={city.Id}")">Edit</a> |
+        <a href="@($"cities/details?id={city.Id}")">Details</a> |
+        <a href="@($"cities/delete?id={city.Id}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>
+
+@code {
+    private ApplicationDbContext context = default!;
+
+    protected override void OnInitialized()
+    {
+        context = DbFactory.CreateDbContext();
+    }
+
+    public async ValueTask DisposeAsync() => await context.DisposeAsync();
+}

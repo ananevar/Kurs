@@ -188,8 +188,68 @@ build_metadata.AdditionalFiles.CssScope =
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBdXRoLnJhem9y
 build_metadata.AdditionalFiles.CssScope = 
 
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/BuildingPages/Create.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xCdWlsZGluZ1BhZ2VzXENyZWF0ZS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/BuildingPages/Delete.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xCdWlsZGluZ1BhZ2VzXERlbGV0ZS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/BuildingPages/Details.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xCdWlsZGluZ1BhZ2VzXERldGFpbHMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/BuildingPages/Edit.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xCdWlsZGluZ1BhZ2VzXEVkaXQucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/BuildingPages/Index.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xCdWlsZGluZ1BhZ2VzXEluZGV4LnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/CityPages/Create.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xDaXR5UGFnZXNcQ3JlYXRlLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/CityPages/Delete.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xDaXR5UGFnZXNcRGVsZXRlLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/CityPages/Details.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xDaXR5UGFnZXNcRGV0YWlscy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/CityPages/Edit.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xDaXR5UGFnZXNcRWRpdC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/CityPages/Index.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xDaXR5UGFnZXNcSW5kZXgucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
 [C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/Counter.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xDb3VudGVyLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/DistrictPages/Create.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xEaXN0cmljdFBhZ2VzXENyZWF0ZS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/DistrictPages/Delete.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xEaXN0cmljdFBhZ2VzXERlbGV0ZS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/DistrictPages/Details.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xEaXN0cmljdFBhZ2VzXERldGFpbHMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/DistrictPages/Edit.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xEaXN0cmljdFBhZ2VzXEVkaXQucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/DistrictPages/Index.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xEaXN0cmljdFBhZ2VzXEluZGV4LnJhem9y
 build_metadata.AdditionalFiles.CssScope = 
 
 [C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/Error.razor]
@@ -198,6 +258,42 @@ build_metadata.AdditionalFiles.CssScope =
 
 [C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/Home.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xIb21lLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/Properties/Component.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xQcm9wZXJ0aWVzXENvbXBvbmVudC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/Properties/Create.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xQcm9wZXJ0aWVzXENyZWF0ZS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/Properties/Edit.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xQcm9wZXJ0aWVzXEVkaXQucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/Properties/Index.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xQcm9wZXJ0aWVzXEluZGV4LnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/StreetPages/Create.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xTdHJlZXRQYWdlc1xDcmVhdGUucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/StreetPages/Delete.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xTdHJlZXRQYWdlc1xEZWxldGUucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/StreetPages/Details.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xTdHJlZXRQYWdlc1xEZXRhaWxzLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/StreetPages/Edit.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xTdHJlZXRQYWdlc1xFZGl0LnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/StreetPages/Index.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xTdHJlZXRQYWdlc1xJbmRleC5yYXpvcg==
 build_metadata.AdditionalFiles.CssScope = 
 
 [C:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/Weather.razor]

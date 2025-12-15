@@ -1,0 +1,48 @@
+﻿@page "/districts/details"
+@using Microsoft.EntityFrameworkCore
+@using JKH.Models
+@inject IDbContextFactory<JKH.Data.ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Details</PageTitle>
+
+<h1>Details</h1>
+
+<div>
+    <h2>District</h2>
+    <hr />
+    @if (district is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else {
+        <dl class="row">
+            <dt class="col-sm-2">Name</dt>
+            <dd class="col-sm-10">@district.Name</dd>
+            <dt class="col-sm-2">CityId</dt>
+            <dd class="col-sm-10">@district.CityId</dd>
+        </dl>
+        <div>
+            <a href="@($"/districts/edit?id={district.Id}")">Edit</a> |
+            <a href="@($"/districts")">Back to List</a>
+        </div>
+    }
+</div>
+
+@code {
+    private District? district;
+
+    [SupplyParameterFromQuery]
+    private int Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        district = await context.Districts.FirstOrDefaultAsync(m => m.Id == Id);
+
+        if (district is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+    }
+}

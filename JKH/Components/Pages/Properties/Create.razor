@@ -1,0 +1,209 @@
+﻿@page "/properties/create"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using JKH.Data
+@using JKH.Models
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+@attribute [Authorize]
+
+<h3>Добавить квартиру</h3>
+
+<EditForm Model="_model" OnValidSubmit="SaveAsync">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label class="form-label">Город</label>
+            <select class="form-select"
+                    @bind="_cityId"
+                    @bind:after="CityChanged">
+                <option value="">-- выберите --</option>
+                @foreach (var c in _cities)
+                {
+                    <option value="@c.Id">@c.Name</option>
+                }
+            </select>
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label">Район</label>
+            <select class="form-select"
+                    @bind="_districtId"
+                    @bind:after="DistrictChanged"
+                    disabled="@(!_cityId.HasValue)">
+                <option value="">-- выберите --</option>
+                @foreach (var d in _districts)
+                {
+                    <option value="@d.Id">@d.Name</option>
+                }
+            </select>
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label">Улица</label>
+            <select class="form-select"
+                    @bind="_streetId"
+                    @bind:after="StreetChanged"
+                    disabled="@(!_districtId.HasValue)">
+                <option value="">-- выберите --</option>
+                @foreach (var s in _streets)
+                {
+                    <option value="@s.Id">@s.Name</option>
+                }
+            </select>
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label">Дом</label>
+            <select class="form-select"
+                    @bind="_model.BuildingId"
+                    disabled="@(!_streetId.HasValue)">
+                <option value="0">-- выберите --</option>
+                @foreach (var b in _buildings)
+                {
+                    <option value="@b.Id">@b.Number</option>
+                }
+            </select>
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label">Квартира</label>
+            <InputText class="form-control" @bind-Value="_model.Apartment" />
+        </div>
+
+        <div class="col-12">
+            <button class="btn btn-primary" type="submit" disabled="@(!_canSave)">Сохранить</button>
+            <a class="btn btn-link" href="/properties">Отмена</a>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="col-12">
+                <div class="alert alert-danger">@_error</div>
+            </div>
+        }
+    </div>
+</EditForm>
+
+@code {
+    private class PropertyVm
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        public int BuildingId { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.MaxLength(50)]
+        public string Apartment { get; set; } = "";
+    }
+
+    private PropertyVm _model = new();
+
+    private List<City> _cities = new();
+    private List<District> _districts = new();
+    private List<Street> _streets = new();
+    private List<Building> _buildings = new();
+
+    private int? _cityId;
+    private int? _districtId;
+    private int? _streetId;
+
+    private string? _error;
+
+    private bool _canSave => _model.BuildingId != 0 && !string.IsNullOrWhiteSpace(_model.Apartment);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _cities = await db.Cities.AsNoTracking().OrderBy(x => x.Name).ToListAsync();
+    }
+
+    private async Task CityChanged()
+    {
+        _districtId = null;
+        _streetId = null;
+        _model.BuildingId = 0;
+
+        _districts.Clear();
+        _streets.Clear();
+        _buildings.Clear();
+
+        if (!_cityId.HasValue) return;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _districts = await db.Districts.AsNoTracking()
+            .Where(x => x.CityId == _cityId.Value)
+            .OrderBy(x => x.Name)
+            .ToListAsync();
+    }
+
+    private async Task DistrictChanged()
+    {
+        _streetId = null;
+        _model.BuildingId = 0;
+
+        _streets.Clear();
+        _buildings.Clear();
+
+        if (!_districtId.HasValue) return;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _streets = await db.Streets.AsNoTracking()
+            .Where(x => x.DistrictId == _districtId.Value)
+            .OrderBy(x => x.Name)
+            .ToListAsync();
+    }
+
+    private async Task StreetChanged()
+    {
+        _model.BuildingId = 0;
+        _buildings.Clear();
+
+        if (!_streetId.HasValue) return;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _buildings = await db.Buildings.AsNoTracking()
+            .Where(x => x.StreetId == _streetId.Value)
+            .OrderBy(x => x.Number)
+            .ToListAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+
+        var auth = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userId = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _error = "Не удалось определить пользователя.";
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var entity = new Property
+        {
+            UserId = userId,
+            BuildingId = _model.BuildingId,
+            Apartment = _model.Apartment.Trim()
+        };
+
+        db.Properties.Add(entity);
+
+        try
+        {
+            await db.SaveChangesAsync();
+            Nav.NavigateTo("/properties");
+        }
+        catch (DbUpdateException)
+        {
+            _error = "Такая квартира уже добавлена.";
+        }
+    }
+}
