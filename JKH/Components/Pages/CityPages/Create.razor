@@ -4,11 +4,11 @@
 @inject IDbContextFactory<JKH.Data.ApplicationDbContext> DbFactory
 @inject NavigationManager NavigationManager
 
-<PageTitle>Create</PageTitle>
+<PageTitle>Добавить город</PageTitle>
 
-<h1>Create</h1>
+<h1>Добавить</h1>
 
-<h2>City</h2>
+<h2>Город</h2>
 <hr />
 <div class="row">
     <div class="col-md-4">
@@ -16,17 +16,17 @@
             <DataAnnotationsValidator />
             <ValidationSummary class="text-danger" role="alert"/>
             <div class="mb-3">
-                <label for="name" class="form-label">Name:</label> 
+                <label for="name" class="form-label">Название:</label> 
                 <InputText id="name" @bind-Value="City.Name" class="form-control" /> 
                 <ValidationMessage For="() => City.Name" class="text-danger" /> 
             </div>        
-            <button type="submit" class="btn btn-primary">Create</button>
+            <button type="submit" class="btn btn-primary">Добавить</button>
         </EditForm>
     </div>
 </div>
 
 <div>
-    <a href="/cities">Back to List</a>
+    <a href="/cities">Вернутся к списку городов</a>
 </div>
 
 @code {

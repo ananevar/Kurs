@@ -4,91 +4,96 @@
 @inject IDbContextFactory<JKH.Data.ApplicationDbContext> DbFactory
 @inject NavigationManager NavigationManager
 
-<PageTitle>Edit</PageTitle>
+<PageTitle>Редактирование улицы</PageTitle>
 
-<h1>Edit</h1>
-
-<h2>Street</h2>
+<h1>Редактировать улицу</h1>
 <hr />
-@if (Street is null)
+
+@if (_loading)
 {
-    <p><em>Loading...</em></p>
+    <p><em>Загрузка...</em></p>
+}
+else if (Street is null)
+{
+    <div class="alert alert-warning">Улица не найдена.</div>
+    <a class="btn btn-link" href="@BackUrl">Назад</a>
 }
 else
 {
     <div class="row">
         <div class="col-md-4">
-            <EditForm method="post" Model="Street" OnValidSubmit="UpdateStreet" FormName="edit" Enhance>
+            <EditForm Model="Street" OnValidSubmit="UpdateStreet">
                 <DataAnnotationsValidator />
-                <ValidationSummary role="alert"/>
-                <input type="hidden" name="Street.Id" value="@Street.Id" />
+                <ValidationSummary class="text-danger" />
+
                 <div class="mb-3">
-                    <label for="name" class="form-label">Name:</label>
-                    <InputText id="name" @bind-Value="Street.Name" class="form-control" />
+                    <label class="form-label">Название</label>
+                    <InputText class="form-control" @bind-Value="Street.Name" />
                     <ValidationMessage For="() => Street.Name" class="text-danger" />
                 </div>
-                <div class="mb-3">
-                    <label for="districtid" class="form-label">DistrictId:</label>
-                    <InputNumber id="districtid" @bind-Value="Street.DistrictId" class="form-control" />
-                    <ValidationMessage For="() => Street.DistrictId" class="text-danger" />
-                </div>
-                <button type="submit" class="btn btn-primary">Save</button>
+
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+                <a class="btn btn-link" href="@BackUrl">Отмена</a>
+
+                @if (!string.IsNullOrWhiteSpace(_error))
+                {
+                    <div class="alert alert-danger mt-3">@_error</div>
+                }
             </EditForm>
         </div>
     </div>
 }
 
-<div>
-    <a href="/streets">Back to List</a>
-</div>
-
 @code {
     [SupplyParameterFromQuery]
-    private int Id { get; set; }
+    public int id { get; set; }   // /streets/edit?id=123
 
-    [SupplyParameterFromForm]
-    private Street? Street { get; set; }
+    private Street? Street;
+    private bool _loading = true;
+    private string? _error;
+
+    private int _districtId;
+    private string BackUrl => _districtId != 0 ? $"/streets?districtId={_districtId}" : "/cities";
 
     protected override async Task OnInitializedAsync()
     {
-        using var context = DbFactory.CreateDbContext();
-        Street ??= await context.Streets.FirstOrDefaultAsync(m => m.Id == Id);
+        await using var context = await DbFactory.CreateDbContextAsync();
+
+        Street = await context.Streets.FirstOrDefaultAsync(s => s.Id == id);
 
         if (Street is null)
         {
-            NavigationManager.NavigateTo("notfound");
+            _loading = false;
+            return;
         }
+
+        _districtId = Street.DistrictId;
+        _loading = false;
     }
 
-    // To protect from overposting attacks, enable the specific properties you want to bind to.
-    // For more information, see https://learn.microsoft.com/aspnet/core/blazor/forms/#mitigate-overposting-attacks.
     private async Task UpdateStreet()
     {
-        using var context = DbFactory.CreateDbContext();
-        context.Attach(Street!).State = EntityState.Modified;
+        _error = null;
+
+        await using var context = await DbFactory.CreateDbContextAsync();
+
+        var entity = await context.Streets.FirstOrDefaultAsync(s => s.Id == id);
+        if (entity is null)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        entity.Name = Street!.Name.Trim();
 
         try
         {
             await context.SaveChangesAsync();
+            NavigationManager.NavigateTo(BackUrl);
         }
-        catch (DbUpdateConcurrencyException)
+        catch (DbUpdateException)
         {
-            if (!StreetExists(Street!.Id))
-            {
-                NavigationManager.NavigateTo("notfound");
-            }
-            else
-            {
-                throw;
-            }
+            _error = "Не удалось сохранить. Возможно, такая улица уже существует в этом районе.";
         }
-
-        NavigationManager.NavigateTo("/streets");
-    }
-
-    private bool StreetExists(int id)
-    {
-        using var context = DbFactory.CreateDbContext();
-        return context.Streets.Any(e => e.Id == id);
     }
 }

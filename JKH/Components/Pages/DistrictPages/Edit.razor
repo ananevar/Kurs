@@ -4,91 +4,97 @@
 @inject IDbContextFactory<JKH.Data.ApplicationDbContext> DbFactory
 @inject NavigationManager NavigationManager
 
-<PageTitle>Edit</PageTitle>
+<PageTitle>Редактирование района</PageTitle>
 
-<h1>Edit</h1>
-
-<h2>District</h2>
+<h1>Редактировать район</h1>
 <hr />
-@if (District is null)
+
+@if (_loading)
 {
-    <p><em>Loading...</em></p>
+    <p><em>Загрузка...</em></p>
+}
+else if (District is null)
+{
+    <div class="alert alert-warning">Район не найден.</div>
+    <a class="btn btn-link" href="@BackUrl">Назад</a>
 }
 else
 {
     <div class="row">
         <div class="col-md-4">
-            <EditForm method="post" Model="District" OnValidSubmit="UpdateDistrict" FormName="edit" Enhance>
+            <EditForm Model="District" OnValidSubmit="UpdateDistrict">
                 <DataAnnotationsValidator />
-                <ValidationSummary role="alert"/>
-                <input type="hidden" name="District.Id" value="@District.Id" />
+                <ValidationSummary class="text-danger" />
+
                 <div class="mb-3">
-                    <label for="name" class="form-label">Name:</label>
-                    <InputText id="name" @bind-Value="District.Name" class="form-control" />
+                    <label class="form-label">Название</label>
+                    <InputText class="form-control" @bind-Value="District.Name" />
                     <ValidationMessage For="() => District.Name" class="text-danger" />
                 </div>
-                <div class="mb-3">
-                    <label for="cityid" class="form-label">CityId:</label>
-                    <InputNumber id="cityid" @bind-Value="District.CityId" class="form-control" />
-                    <ValidationMessage For="() => District.CityId" class="text-danger" />
-                </div>
-                <button type="submit" class="btn btn-primary">Save</button>
+
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+                <a class="btn btn-link" href="@BackUrl">Отмена</a>
+
+                @if (!string.IsNullOrWhiteSpace(_error))
+                {
+                    <div class="alert alert-danger mt-3">@_error</div>
+                }
             </EditForm>
         </div>
     </div>
 }
 
-<div>
-    <a href="/districts">Back to List</a>
-</div>
-
 @code {
     [SupplyParameterFromQuery]
-    private int Id { get; set; }
+    public int id { get; set; }   // /districts/edit?id=123
 
-    [SupplyParameterFromForm]
-    private District? District { get; set; }
+    private District? District;
+    private bool _loading = true;
+    private string? _error;
+
+    private int _cityId;
+    private string BackUrl => _cityId != 0 ? $"/districts?cityId={_cityId}" : "/cities";
 
     protected override async Task OnInitializedAsync()
     {
-        using var context = DbFactory.CreateDbContext();
-        District ??= await context.Districts.FirstOrDefaultAsync(m => m.Id == Id);
+        await using var context = await DbFactory.CreateDbContextAsync();
+
+        District = await context.Districts.FirstOrDefaultAsync(d => d.Id == id);
 
         if (District is null)
         {
-            NavigationManager.NavigateTo("notfound");
+            _loading = false;
+            return;
         }
+
+        _cityId = District.CityId;
+        _loading = false;
     }
 
-    // To protect from overposting attacks, enable the specific properties you want to bind to.
-    // For more information, see https://learn.microsoft.com/aspnet/core/blazor/forms/#mitigate-overposting-attacks.
     private async Task UpdateDistrict()
     {
-        using var context = DbFactory.CreateDbContext();
-        context.Attach(District!).State = EntityState.Modified;
+        _error = null;
+
+        await using var context = await DbFactory.CreateDbContextAsync();
+
+        var entity = await context.Districts.FirstOrDefaultAsync(d => d.Id == id);
+        if (entity is null)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        // обновляем только Name (без риска перезаписать CityId)
+        entity.Name = District!.Name.Trim();
 
         try
         {
             await context.SaveChangesAsync();
+            NavigationManager.NavigateTo(BackUrl);
         }
-        catch (DbUpdateConcurrencyException)
+        catch (DbUpdateException)
         {
-            if (!DistrictExists(District!.Id))
-            {
-                NavigationManager.NavigateTo("notfound");
-            }
-            else
-            {
-                throw;
-            }
+            _error = "Не удалось сохранить. Возможно, район с таким названием уже существует в этом городе.";
         }
-
-        NavigationManager.NavigateTo("/districts");
-    }
-
-    private bool DistrictExists(int id)
-    {
-        using var context = DbFactory.CreateDbContext();
-        return context.Districts.Any(e => e.Id == id);
     }
 }

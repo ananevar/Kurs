@@ -26,11 +26,9 @@
     <TemplateColumn Context="d" Title="Действия">
         <a href="@($"/streets?districtId={d.Id}")">Улицы</a>
         |
-        <a href="@($"/districts/edit?id={d.Id}")">Edit</a>
+        <a href="@($"/districts/edit?id={d.Id}")">Редактировать</a>
         |
-        <a href="@($"/districts/details?id={d.Id}")">Details</a>
-        |
-        <a href="@($"/districts/delete?id={d.Id}")">Delete</a>
+        <a href="@($"/districts/delete?id={d.Id}")">Удалить</a>
     </TemplateColumn>
 </QuickGrid>
 

@@ -4,91 +4,97 @@
 @inject IDbContextFactory<JKH.Data.ApplicationDbContext> DbFactory
 @inject NavigationManager NavigationManager
 
-<PageTitle>Edit</PageTitle>
+<PageTitle>Редактирование дома</PageTitle>
 
-<h1>Edit</h1>
-
-<h2>Building</h2>
+<h1>Редактировать дом</h1>
 <hr />
-@if (Building is null)
+
+@if (_loading)
 {
-    <p><em>Loading...</em></p>
+    <p><em>Загрузка...</em></p>
+}
+else if (Building is null)
+{
+    <div class="alert alert-warning">Дом не найден.</div>
+    <a class="btn btn-link" href="@BackUrl">Назад</a>
 }
 else
 {
     <div class="row">
         <div class="col-md-4">
-            <EditForm method="post" Model="Building" OnValidSubmit="UpdateBuilding" FormName="edit" Enhance>
+            <EditForm Model="Building" OnValidSubmit="UpdateBuilding">
                 <DataAnnotationsValidator />
-                <ValidationSummary role="alert"/>
-                <input type="hidden" name="Building.Id" value="@Building.Id" />
+                <ValidationSummary class="text-danger" />
+
                 <div class="mb-3">
-                    <label for="number" class="form-label">Number:</label>
-                    <InputText id="number" @bind-Value="Building.Number" class="form-control" />
+                    <label class="form-label">Номер дома</label>
+                    <InputText class="form-control" @bind-Value="Building.Number" />
                     <ValidationMessage For="() => Building.Number" class="text-danger" />
                 </div>
-                <div class="mb-3">
-                    <label for="streetid" class="form-label">StreetId:</label>
-                    <InputNumber id="streetid" @bind-Value="Building.StreetId" class="form-control" />
-                    <ValidationMessage For="() => Building.StreetId" class="text-danger" />
-                </div>
-                <button type="submit" class="btn btn-primary">Save</button>
+
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+                <a class="btn btn-link" href="@BackUrl">Отмена</a>
+
+                @if (!string.IsNullOrWhiteSpace(_error))
+                {
+                    <div class="alert alert-danger mt-3">@_error</div>
+                }
             </EditForm>
         </div>
     </div>
 }
 
-<div>
-    <a href="/buildings">Back to List</a>
-</div>
-
 @code {
     [SupplyParameterFromQuery]
-    private int Id { get; set; }
+    public int id { get; set; }   // /buildings/edit?id=123
 
-    [SupplyParameterFromForm]
-    private Building? Building { get; set; }
+    private Building? Building;
+    private bool _loading = true;
+    private string? _error;
+
+    private int _streetId;
+    private string BackUrl => _streetId != 0 ? $"/buildings?streetId={_streetId}" : "/cities";
 
     protected override async Task OnInitializedAsync()
     {
-        using var context = DbFactory.CreateDbContext();
-        Building ??= await context.Buildings.FirstOrDefaultAsync(m => m.Id == Id);
+        await using var context = await DbFactory.CreateDbContextAsync();
+
+        Building = await context.Buildings.FirstOrDefaultAsync(b => b.Id == id);
 
         if (Building is null)
         {
-            NavigationManager.NavigateTo("notfound");
+            _loading = false;
+            return;
         }
+
+        _streetId = Building.StreetId;
+        _loading = false;
     }
 
-    // To protect from overposting attacks, enable the specific properties you want to bind to.
-    // For more information, see https://learn.microsoft.com/aspnet/core/blazor/forms/#mitigate-overposting-attacks.
     private async Task UpdateBuilding()
     {
-        using var context = DbFactory.CreateDbContext();
-        context.Attach(Building!).State = EntityState.Modified;
+        _error = null;
+
+        await using var context = await DbFactory.CreateDbContextAsync();
+
+        var entity = await context.Buildings.FirstOrDefaultAsync(b => b.Id == id);
+        if (entity is null)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        // обновляем только номер
+        entity.Number = Building!.Number.Trim();
 
         try
         {
             await context.SaveChangesAsync();
+            NavigationManager.NavigateTo(BackUrl);
         }
-        catch (DbUpdateConcurrencyException)
+        catch (DbUpdateException)
         {
-            if (!BuildingExists(Building!.Id))
-            {
-                NavigationManager.NavigateTo("notfound");
-            }
-            else
-            {
-                throw;
-            }
+            _error = "Не удалось сохранить. Возможно, дом с таким номером уже существует на этой улице.";
         }
-
-        NavigationManager.NavigateTo("/buildings");
-    }
-
-    private bool BuildingExists(int id)
-    {
-        using var context = DbFactory.CreateDbContext();
-        return context.Buildings.Any(e => e.Id == id);
     }
 }

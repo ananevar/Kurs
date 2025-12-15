@@ -7,10 +7,10 @@
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject NavigationManager NavigationManager
 
-<PageTitle>Create District</PageTitle>
+<PageTitle>Добавление района</PageTitle>
 
-<h1>Create</h1>
-<h2>District</h2>
+<h1>Добавить</h1>
+<h2>Район</h2>
 <hr />
 
 <div class="row">
@@ -20,7 +20,7 @@
             <ValidationSummary class="text-danger" />
 
             <div class="mb-3">
-                <label class="form-label">Name</label>
+                <label class="form-label">Название</label>
                 <InputText @bind-Value="District.Name" class="form-control" />
                 <ValidationMessage For="() => District.Name" />
             </div>
@@ -28,13 +28,13 @@
             <!-- CityId скрыт, но передан -->
             <input type="hidden" @bind="District.CityId" />
 
-            <button type="submit" class="btn btn-primary">Create</button>
+            <button type="submit" class="btn btn-primary">Создать</button>
         </EditForm>
     </div>
 </div>
 
 <div class="mt-3">
-    <a href="@($"/districts?cityId={cityId}")">Back to List</a>
+    <a href="@($"/districts?cityId={cityId}")">Вернутся к списку районов</a>
 </div>
 
 @code {
