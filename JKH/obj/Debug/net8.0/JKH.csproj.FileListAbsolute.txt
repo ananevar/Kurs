@@ -290,4 +290,5 @@ C:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\J
 C:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\bin\Debug\net8.0\zh-Hans\Microsoft.CodeAnalysis.Scripting.resources.dll
 C:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\bin\Debug\net8.0\zh-Hant\Microsoft.CodeAnalysis.Scripting.resources.dll
 c:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\obj\Debug\net8.0\JKH.sourcelink.json
-C:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt
+c:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\bin\Debug\net8.0\Castle.Core.dll
+c:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\bin\Debug\net8.0\Microsoft.EntityFrameworkCore.Proxies.dll

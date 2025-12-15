@@ -1,49 +1,66 @@
 ﻿@page "/streets/create"
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
 @using JKH.Models
-@inject IDbContextFactory<JKH.Data.ApplicationDbContext> DbFactory
+@using JKH.Data
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject NavigationManager NavigationManager
 
-<PageTitle>Create</PageTitle>
+<PageTitle>Добавить улицу</PageTitle>
 
-<h1>Create</h1>
-
-<h2>Street</h2>
+<h1>Добавить улицу</h1>
 <hr />
+
 <div class="row">
     <div class="col-md-4">
-        <EditForm method="post" Model="Street" OnValidSubmit="AddStreet" FormName="create" Enhance>
+        <EditForm Model="Street" OnValidSubmit="AddStreet">
             <DataAnnotationsValidator />
-            <ValidationSummary class="text-danger" role="alert"/>
+            <ValidationSummary class="text-danger" />
+
             <div class="mb-3">
-                <label for="name" class="form-label">Name:</label> 
-                <InputText id="name" @bind-Value="Street.Name" class="form-control" /> 
-                <ValidationMessage For="() => Street.Name" class="text-danger" /> 
-            </div>        
-            <div class="mb-3">
-                <label for="districtid" class="form-label">DistrictId:</label> 
-                <InputNumber id="districtid" @bind-Value="Street.DistrictId" class="form-control" /> 
-                <ValidationMessage For="() => Street.DistrictId" class="text-danger" /> 
-            </div>        
-            <button type="submit" class="btn btn-primary">Create</button>
+                <label class="form-label">Название улицы</label>
+                <InputText class="form-control" @bind-Value="Street.Name" />
+                <ValidationMessage For="() => Street.Name" class="text-danger" />
+            </div>
+
+            <!-- DistrictId скрыто, подставляется из query -->
+            <input type="hidden" @bind="Street.DistrictId" />
+
+            <button type="submit" class="btn btn-primary">Создать</button>
         </EditForm>
     </div>
 </div>
 
-<div>
-    <a href="/streets">Back to List</a>
+<div class="mt-3">
+    <a href="@BackUrl">Назад</a>
 </div>
 
 @code {
-    [SupplyParameterFromForm]
+    [SupplyParameterFromQuery]
+    public int? districtId { get; set; }
+
     private Street Street { get; set; } = new();
 
-    // To protect from overposting attacks, see https://learn.microsoft.com/aspnet/core/blazor/forms/#mitigate-overposting-attacks.
+    private string BackUrl =>
+        districtId.HasValue ? $"/streets?districtId={districtId.Value}" : "/cities";
+
+    protected override void OnInitialized()
+    {
+        if (!districtId.HasValue)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        Street.DistrictId = districtId.Value;
+    }
+
     private async Task AddStreet()
     {
-        using var context = DbFactory.CreateDbContext();
+        await using var context = await DbFactory.CreateDbContextAsync();
         context.Streets.Add(Street);
         await context.SaveChangesAsync();
-        NavigationManager.NavigateTo("/streets");
+
+        NavigationManager.NavigateTo(BackUrl);
     }
 }

@@ -4,34 +4,87 @@
 @using JKH.Models
 @using JKH.Data
 @implements IAsyncDisposable
-@inject IDbContextFactory<JKH.Data.ApplicationDbContext> DbFactory
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
 
-<PageTitle>Index</PageTitle>
+<PageTitle>Улицы</PageTitle>
 
-<h1>Index</h1>
+<h1>Улицы района - @DistrictName (@CityName)</h1>
 
 <p>
-    <a href="streets/create">Create New</a>
+    <a href="@($"/streets/create?districtId={districtId}")">Добавить улицу</a>
+</p>
+<p>
+    <a href="@BackUrl">Назад</a>
 </p>
 
-<QuickGrid Class="table" Items="context.Streets">
-    <PropertyColumn Property="street => street.Name" />
-    <PropertyColumn Property="street => street.DistrictId" />
+<QuickGrid Class="table" Items="_streets">
+    <PropertyColumn Title="Улица" Property="s => s.Name" />
+    <PropertyColumn Title="Кол-во домов" Property="s => s.Buildings.Count" />
 
-    <TemplateColumn Context="street">
-        <a href="@($"streets/edit?id={street.Id}")">Edit</a> |
-        <a href="@($"streets/details?id={street.Id}")">Details</a> |
-        <a href="@($"streets/delete?id={street.Id}")">Delete</a>
+    <TemplateColumn Context="s" Title="Действия">
+        <a href="@($"/buildings?streetId={s.Id}")">Дома</a>
+        |
+        <a href="@($"/streets/edit?id={s.Id}")">Edit</a>
+        |
+        <a href="@($"/streets/details?id={s.Id}")">Details</a>
+        |
+        <a href="@($"/streets/delete?id={s.Id}")">Delete</a>
     </TemplateColumn>
 </QuickGrid>
 
 @code {
-    private ApplicationDbContext context = default!;
+    [SupplyParameterFromQuery]
+    public int? districtId { get; set; }
 
-    protected override void OnInitialized()
+    public string CityName { get; set; } = "";
+    public string DistrictName { get; set; } = "";
+
+    private ApplicationDbContext context = default!;
+    private IQueryable<Street> _streets = default!;
+
+    private string BackUrl => (cityId.HasValue)
+        ? $"/districts?cityId={cityId.Value}"
+        : "/cities";
+
+    private int? cityId;
+
+    protected override async Task OnInitializedAsync()
     {
-        context = DbFactory.CreateDbContext();
+        context = await DbFactory.CreateDbContextAsync();
+
+        if (!districtId.HasValue)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        // Найдём район и город для заголовка и кнопки "Назад"
+        var district = await context.Districts
+            .AsNoTracking()
+            .Include(d => d.City)
+            .FirstOrDefaultAsync(d => d.Id == districtId.Value);
+
+        if (district is null)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        DistrictName = district.Name;
+        CityName = district.City.Name;
+        cityId = district.CityId;
+
+        _streets = context.Streets
+            .Include(s => s.Buildings)      // нужно для Buildings.Count
+            .AsNoTracking()
+            .Where(s => s.DistrictId == districtId.Value)
+            .OrderBy(s => s.Name);
     }
 
-    public async ValueTask DisposeAsync() => await context.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        if (context is not null)
+            await context.DisposeAsync();
+    }
 }

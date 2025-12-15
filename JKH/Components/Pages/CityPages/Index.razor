@@ -4,37 +4,54 @@
 @using JKH.Models
 @using JKH.Data
 @implements IAsyncDisposable
-@inject IDbContextFactory<JKH.Data.ApplicationDbContext> DbFactory
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
 
-<PageTitle>Index</PageTitle>
+<PageTitle>Города</PageTitle>
 
-<h1>Index</h1>
+<h1>Города</h1>
 
 <p>
-    <a href="cities/create">Create New</a>
+    <a href="cities/create">Добавить город</a>
 </p>
 
-<QuickGrid Class="table" Items="context.Cities">
-    <PropertyColumn Title="Город" Property="city => city.Name" />
-    <PropertyColumn Title="Количество районов" Property="city => city.Districts!.Count()" />
-    <PropertyColumn Title="Количество улиц" Property="city => city.Name" />
-    <PropertyColumn Title="Количество домов" Property="city => city.Name" />
+<QuickGrid Class="table" Items="_cities">
+    <PropertyColumn Title="Город" Property="c => c.Name" />
+    <PropertyColumn Title="Районов" Property="c => c.Districts.Count" />
+    <PropertyColumn Title="Улиц" Property="c => c.Districts.Sum(d => d.Streets.Count)" />
+    <PropertyColumn Title="Домов" Property="c => c.Districts.Sum(d => d.Streets.Sum(s => s.Buildings.Count))" />
+    <PropertyColumn Title="Квартир" Property="c => c.Districts.Sum(d => d.Streets.Sum(s => s.Buildings.Sum(b => b.Properties.Count)))" />
 
-    <TemplateColumn Context="city">
-        <a href="@($"districts?id={city.Id}")">Районы</a>
-        <a href="@($"cities/edit?id={city.Id}")">Edit</a> |
-        <a href="@($"cities/details?id={city.Id}")">Details</a> |
-        <a href="@($"cities/delete?id={city.Id}")">Delete</a>
+    <TemplateColumn Context="c" Title="Действия">
+        <a href="@($"/districts?cityId={c.Id}")">Районы</a>
+        |
+        <a href="@($"cities/edit?id={c.Id}")">Edit</a>
+        |
+        <a href="@($"cities/details?id={c.Id}")">Details</a>
+        |
+        <a href="@($"cities/delete?id={c.Id}")">Delete</a>
     </TemplateColumn>
 </QuickGrid>
 
 @code {
     private ApplicationDbContext context = default!;
+    private IQueryable<City> _cities = default!;
 
     protected override void OnInitialized()
     {
         context = DbFactory.CreateDbContext();
+
+        _cities = context.Cities
+            .Include(c => c.Districts)
+                .ThenInclude(d => d.Streets)
+                    .ThenInclude(s => s.Buildings)
+                        .ThenInclude(b => b.Properties)
+            .AsNoTracking()
+            .OrderBy(c => c.Name);
     }
 
-    public async ValueTask DisposeAsync() => await context.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        if (context is not null)
+            await context.DisposeAsync();
+    }
 }

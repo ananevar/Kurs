@@ -4,34 +4,78 @@
 @using JKH.Models
 @using JKH.Data
 @implements IAsyncDisposable
-@inject IDbContextFactory<JKH.Data.ApplicationDbContext> DbFactory
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
 
-<PageTitle>Index</PageTitle>
+<PageTitle>Районы города</PageTitle>
 
-<h1>Index</h1>
+<h1>Районы города - @CityName</h1>
 
 <p>
-    <a href="districts/create">Create New</a>
+    <a href="@($"/districts/create?cityId={cityId}")">Добавить район</a>
+</p>
+<p>
+    <a href="/cities">Назад</a>
 </p>
 
-<QuickGrid Class="table" Items="context.Districts">
-    <PropertyColumn Property="district => district.Name" />
-    <PropertyColumn Property="district => district.CityId" />
+<QuickGrid Class="table" Items="_districts">
+    <PropertyColumn Title="Район" Property="d => d.Name" />
+    <PropertyColumn Title="Кол-во улиц" Property="d => d.Streets.Count" />
+    <PropertyColumn Title="Кол-во домов" Property="d => d.Streets.Sum(s => s.Buildings.Count)" />
 
-    <TemplateColumn Context="district">
-        <a href="@($"districts/edit?id={district.Id}")">Edit</a> |
-        <a href="@($"districts/details?id={district.Id}")">Details</a> |
-        <a href="@($"districts/delete?id={district.Id}")">Delete</a>
+    <TemplateColumn Context="d" Title="Действия">
+        <a href="@($"/streets?districtId={d.Id}")">Улицы</a>
+        |
+        <a href="@($"/districts/edit?id={d.Id}")">Edit</a>
+        |
+        <a href="@($"/districts/details?id={d.Id}")">Details</a>
+        |
+        <a href="@($"/districts/delete?id={d.Id}")">Delete</a>
     </TemplateColumn>
 </QuickGrid>
 
 @code {
-    private ApplicationDbContext context = default!;
+    [SupplyParameterFromQuery]
+    public int? cityId { get; set; }
 
-    protected override void OnInitialized()
+    public string CityName { get; set; } = "";
+
+    private ApplicationDbContext context = default!;
+    private IQueryable<District> _districts = default!;
+
+    protected override async Task OnInitializedAsync()
     {
-        context = DbFactory.CreateDbContext();
+        context = await DbFactory.CreateDbContextAsync();
+
+        if (!cityId.HasValue)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        var city = await context.Cities
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == cityId.Value);
+
+        if (city is null)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        CityName = city.Name;
+
+        _districts = context.Districts
+            .Include(d => d.Streets)
+                .ThenInclude(s => s.Buildings)
+            .AsNoTracking()
+            .Where(d => d.CityId == cityId.Value)
+            .OrderBy(d => d.Name);
     }
 
-    public async ValueTask DisposeAsync() => await context.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        if (context is not null)
+            await context.DisposeAsync();
+    }
 }
