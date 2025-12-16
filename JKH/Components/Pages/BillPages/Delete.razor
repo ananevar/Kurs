@@ -1,0 +1,166 @@
+@page "/bills/delete"
+@using Microsoft.EntityFrameworkCore
+@using JKH.Data
+@using JKH.Models
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager Nav
+
+<PageTitle>Удаление счёта</PageTitle>
+
+<h1>Удаление счёта</h1>
+
+@if (_loading)
+{
+    <p><em>Загрузка...</em></p>
+}
+else if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+    <a class="btn btn-secondary" href="@BackUrl">Назад</a>
+}
+else if (_bill is null)
+{
+    <div class="alert alert-warning">Счёт не найден.</div>
+    <a class="btn btn-secondary" href="@BackUrl">Назад</a>
+}
+else
+{
+    <div class="alert alert-warning">
+        <b>Внимание:</b> вы действительно хотите удалить этот счёт?
+        <div class="mt-2">
+            <div><b>Период:</b> @_bill.Period</div>
+            <div><b>Сумма:</b> @_bill.Total.ToString("0.00")</div>
+            <div><b>Строк:</b> @_bill.Lines.Count</div>
+        </div>
+    </div>
+
+    @if (_bill.Lines.Count > 0)
+    {
+        <div class="card p-3 mb-3">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Услуга</th>
+                            <th>Счётчик</th>
+                            <th class="text-end">Пред.</th>
+                            <th class="text-end">Тек.</th>
+                            <th class="text-end">Расход</th>
+                            <th class="text-end">Тариф</th>
+                            <th class="text-end">Сумма</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var l in _bill.Lines.OrderBy(x => x.Id))
+                        {
+                            <tr>
+                                <td>@(l.Meter?.ServiceType?.Name ?? $"ServiceTypeId={l.Meter?.ServiceTypeId}")</td>
+                                <td>#@l.MeterId</td>
+                                <td class="text-end">@l.PrevValue</td>
+                                <td class="text-end">@l.CurrValue</td>
+                                <td class="text-end">@l.Consumption</td>
+                                <td class="text-end">@l.TariffPrice</td>
+                                <td class="text-end">@l.Amount.ToString("0.00")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    <div class="d-flex gap-2">
+        <button class="btn btn-danger" @onclick="DeleteAsync" disabled="@_busy">
+            Удалить
+        </button>
+        <a class="btn btn-secondary" href="@BackUrl">Отмена</a>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public int? id { get; set; }
+
+    private bool _loading = true;
+    private bool _busy = false;
+    private string? _error;
+
+    private Bill? _bill;
+
+    private int? _propertyIdForBack;
+
+    private string BackUrl =>
+        _propertyIdForBack.HasValue
+            ? $"/bills?propertyId={_propertyIdForBack.Value}"
+            : "/bills";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!id.HasValue)
+        {
+            _error = "Не передан параметр id.";
+            _loading = false;
+            return;
+        }
+
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+
+            _bill = await db.Bills
+                .AsNoTracking()
+                .Include(b => b.Lines)
+                    .ThenInclude(l => l.Meter)
+                        .ThenInclude(m => m.ServiceType)
+                .FirstOrDefaultAsync(b => b.Id == id.Value);
+
+            _propertyIdForBack = _bill?.PropertyId;
+        }
+        catch (Exception ex)
+        {
+            _error = "Ошибка загрузки: " + ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (!id.HasValue || _busy) return;
+
+        _busy = true;
+        _error = null;
+
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+
+            var bill = await db.Bills.FirstOrDefaultAsync(b => b.Id == id.Value);
+            if (bill is null)
+            {
+                _error = "Счёт уже удалён или не найден.";
+                return;
+            }
+
+            var backProp = bill.PropertyId;
+
+            db.Bills.Remove(bill);
+            await db.SaveChangesAsync();
+
+            Nav.NavigateTo($"/bills?propertyId={backProp}");
+        }
+        catch (DbUpdateException ex)
+        {
+            _error = "Не удалось удалить счёт (ошибка БД): " + ex.Message;
+        }
+        catch (Exception ex)
+        {
+            _error = "Ошибка удаления: " + ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

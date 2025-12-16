@@ -1,0 +1,105 @@
+@page "/readings/delete"
+@using Microsoft.EntityFrameworkCore
+@using JKH.Data
+@using JKH.Models
+@implements IAsyncDisposable
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Удалить показание</PageTitle>
+
+<h1>Удалить показание</h1>
+
+@if (_loading)
+{
+    <p>Загрузка...</p>
+}
+else if (_notFound)
+{
+    <div class="alert alert-warning">Показание не найдено.</div>
+    <a class="btn btn-link" href="@BackUrl">Назад</a>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">@_error</div>
+    }
+
+    <div class="alert alert-warning">
+        Удалить показание за <b>@_date</b> со значением <b>@_value</b>?
+    </div>
+
+    <button class="btn btn-danger" @onclick="DeleteAsync">Удалить</button>
+    <a class="btn btn-link" href="@BackUrl">Отмена</a>
+}
+
+@code {
+    [SupplyParameterFromQuery] public int? id { get; set; }
+
+    private ApplicationDbContext _db = default!;
+    private bool _loading = true;
+    private bool _notFound = false;
+
+    private int _meterId;
+    private string BackUrl => _meterId != 0 ? $"/readings?meterId={_meterId}" : "/properties";
+
+    private string _date = "";
+    private decimal _value;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _db = await DbFactory.CreateDbContextAsync();
+
+        if (!id.HasValue)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        var r = await _db.MeterReadings.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id.Value);
+        if (r is null)
+        {
+            _notFound = true;
+            _loading = false;
+            return;
+        }
+
+        _meterId = r.MeterId;
+        _date = r.ReadingDate.ToString();
+        _value = r.Value;
+
+        _loading = false;
+    }
+
+    private async Task DeleteAsync()
+    {
+        _error = null;
+
+        var r = await _db.MeterReadings.FirstOrDefaultAsync(x => x.Id == id!.Value);
+        if (r is null)
+        {
+            _notFound = true;
+            return;
+        }
+
+        _db.MeterReadings.Remove(r);
+
+        try
+        {
+            await _db.SaveChangesAsync();
+            NavigationManager.NavigateTo(BackUrl);
+        }
+        catch (DbUpdateException)
+        {
+            _error = "Нельзя удалить показание: оно может быть использовано в начислениях/отчётах.";
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_db is not null)
+            await _db.DisposeAsync();
+    }
+}

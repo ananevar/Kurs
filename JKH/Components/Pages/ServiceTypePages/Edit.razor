@@ -1,0 +1,104 @@
+@page "/servicetypes/edit"
+@using Microsoft.EntityFrameworkCore
+@using JKH.Data
+@using JKH.Models
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Редактировать услугу</PageTitle>
+
+<h1>Редактировать услугу</h1>
+<hr />
+
+@if (_loading)
+{
+    <p><em>Загрузка...</em></p>
+}
+else if (_notFound)
+{
+    <div class="alert alert-warning">Услуга не найдена.</div>
+    <a class="btn btn-link" href="/servicetypes">Назад</a>
+}
+else
+{
+    <EditForm Model="_model" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="text-danger" />
+
+        <div class="mb-3">
+            <label class="form-label">Название</label>
+            <InputText class="form-control" @bind-Value="_model.Name" />
+            <ValidationMessage For="() => _model.Name" class="text-danger" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Единица измерения</label>
+            <InputText class="form-control" @bind-Value="_model.Unit" />
+            <ValidationMessage For="() => _model.Unit" class="text-danger" />
+        </div>
+
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+        <a class="btn btn-link" href="/servicetypes">Отмена</a>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger mt-3">@_error</div>
+        }
+    </EditForm>
+}
+
+@code {
+    [SupplyParameterFromQuery] public int id { get; set; }
+
+    private bool _loading = true;
+    private bool _notFound = false;
+    private string? _error;
+
+    private ServiceType _model = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var entity = await db.ServiceTypes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        if (entity is null)
+        {
+            _notFound = true;
+            _loading = false;
+            return;
+        }
+
+        _model.Id = entity.Id;
+        _model.Name = entity.Name;
+        _model.Unit = entity.Unit;
+
+        _loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var entity = await db.ServiceTypes.FirstOrDefaultAsync(x => x.Id == id);
+        if (entity is null)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        entity.Name = _model.Name.Trim();
+        entity.Unit = _model.Unit.Trim();
+
+        try
+        {
+            await db.SaveChangesAsync();
+            NavigationManager.NavigateTo("/servicetypes");
+        }
+        catch (DbUpdateException)
+        {
+            _error = "Не удалось сохранить. Возможно, услуга с таким названием уже существует.";
+        }
+    }
+}

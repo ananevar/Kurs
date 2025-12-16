@@ -1,0 +1,143 @@
+@page "/readings/edit"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.EntityFrameworkCore
+@using JKH.Data
+@using JKH.Models
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Редактировать показание</PageTitle>
+
+<h1>Редактировать показание</h1>
+<hr />
+
+@if (_loading)
+{
+    <p><em>Загрузка...</em></p>
+}
+else if (_notFound)
+{
+    <div class="alert alert-warning">Показание не найдено.</div>
+    <a class="btn btn-link" href="@BackUrl">Назад</a>
+}
+else
+{
+    <EditForm Model="_model" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="text-danger" />
+
+        <div class="mb-3">
+            <label class="form-label">Месяц</label>
+            <InputDate class="form-control" @bind-Value="_model.Date" />
+            <div class="form-text">Дата будет сохранена как первое число месяца.</div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Показание</label>
+            <InputNumber class="form-control" @bind-Value="_model.Value" />
+            <ValidationMessage For="() => _model.Value" class="text-danger" />
+        </div>
+
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+        <a class="btn btn-link" href="@BackUrl">Отмена</a>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger mt-3">@_error</div>
+        }
+    </EditForm>
+}
+
+@code {
+    [SupplyParameterFromQuery] public int id { get; set; }
+
+    private bool _loading = true;
+    private bool _notFound = false;
+    private string? _error;
+
+    private int _meterId;
+    private string BackUrl => _meterId != 0 ? $"/readings?meterId={_meterId}" : "/properties";
+
+    private Vm _model = new();
+
+    private sealed class Vm
+    {
+        public DateTime Date { get; set; }
+
+        [Range(0, 999999999, ErrorMessage = "Введите корректное значение")]
+        public decimal Value { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var r = await db.MeterReadings.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        if (r is null)
+        {
+            _notFound = true;
+            _loading = false;
+            return;
+        }
+
+        _meterId = r.MeterId;
+        _model.Date = r.ReadingDate.ToDateTime(TimeOnly.MinValue);
+        _model.Value = r.Value;
+
+        _loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var entity = await db.MeterReadings.FirstOrDefaultAsync(x => x.Id == id);
+        if (entity is null)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        var normalized = new DateOnly(_model.Date.Year, _model.Date.Month, 1);
+
+        // уникальность месяца (кроме текущей записи)
+        var existsForMonth = await db.MeterReadings
+            .AsNoTracking()
+            .AnyAsync(r => r.MeterId == entity.MeterId && r.ReadingDate == normalized && r.Id != entity.Id);
+
+        if (existsForMonth)
+        {
+            _error = "Показание за этот месяц уже существует.";
+            return;
+        }
+
+        // проверка: не меньше предыдущего (берем максимум по датам меньше новой даты)
+        var prev = await db.MeterReadings
+            .AsNoTracking()
+            .Where(r => r.MeterId == entity.MeterId && r.Id != entity.Id && r.ReadingDate < normalized)
+            .OrderByDescending(r => r.ReadingDate)
+            .Select(r => (decimal?)r.Value)
+            .FirstOrDefaultAsync();
+
+        if (prev.HasValue && _model.Value < prev.Value)
+        {
+            _error = $"Новое показание не может быть меньше предыдущего ({prev.Value}).";
+            return;
+        }
+
+        entity.ReadingDate = normalized;
+        entity.Value = _model.Value;
+
+        try
+        {
+            await db.SaveChangesAsync();
+            NavigationManager.NavigateTo(BackUrl);
+        }
+        catch (DbUpdateException)
+        {
+            _error = "Не удалось сохранить изменения.";
+        }
+    }
+}

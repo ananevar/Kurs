@@ -1,0 +1,86 @@
+@page "/bills/details"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using JKH.Data
+@using JKH.Models
+@implements IAsyncDisposable
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Счет</PageTitle>
+
+<h1>Счет за @Period</h1>
+<p><b>Итого:</b> @Total</p>
+
+<p>
+    <a href="@BackUrl">Назад</a>
+</p>
+
+@if (_bill is null)
+{
+    <p><em>Загрузка...</em></p>
+}
+else
+{
+    <QuickGrid Class="table" Items="_lines">
+        <PropertyColumn Title="Услуга" Property="l => l.Meter.ServiceType.Name" />
+        <PropertyColumn Title="Пред." Property="l => l.PrevValue" />
+        <PropertyColumn Title="Тек." Property="l => l.CurrValue" />
+        <PropertyColumn Title="Расход" Property="l => l.Consumption" />
+        <PropertyColumn Title="Тариф" Property="l => l.TariffPrice" />
+        <PropertyColumn Title="Сумма" Property="l => l.Amount" />
+    </QuickGrid>
+}
+
+@code {
+    [SupplyParameterFromQuery] public int? id { get; set; }
+
+    private ApplicationDbContext _db = default!;
+    private Bill? _bill;
+    private IQueryable<BillLine> _lines = default!;
+
+    public string Period { get; set; } = "";
+    public decimal Total { get; set; }
+    private int _propertyId;
+    private string BackUrl => _propertyId != 0 ? $"/bills?propertyId={_propertyId}" : "/properties";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _db = await DbFactory.CreateDbContextAsync();
+
+        if (!id.HasValue)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        _bill = await _db.Bills
+            .AsNoTracking()
+            .Include(b => b.Lines)
+                .ThenInclude(l => l.Meter)
+                    .ThenInclude(m => m.ServiceType)
+            .FirstOrDefaultAsync(b => b.Id == id.Value);
+
+        if (_bill is null)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        _propertyId = _bill.PropertyId;
+        Period = _bill.Period.ToString();
+        Total = _bill.Total;
+
+        _lines = _db.BillLines
+            .AsNoTracking()
+            .Include(l => l.Meter).ThenInclude(m => m.ServiceType)
+            .Where(l => l.BillId == _bill.Id)
+            .OrderBy(l => l.Meter.ServiceType.Name);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_db is not null)
+            await _db.DisposeAsync();
+    }
+}

@@ -1,0 +1,80 @@
+@page "/bills"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using JKH.Data
+@using JKH.Models
+@implements IAsyncDisposable
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Счета</PageTitle>
+
+<h1>Счета — @PropertyTitle</h1>
+
+<p>
+    <a href="@($"/bills/generate?propertyId={propertyId}")">Сформировать счет</a>
+</p>
+<p>
+    <a href="@BackUrl">Назад</a>
+</p>
+
+<QuickGrid Class="table" Items="_items">
+    <PropertyColumn Title="Период" Property="b => b.Period" />
+    <PropertyColumn Title="Создан" Property="b => b.CreatedAt" />
+    <PropertyColumn Title="Итого" Property="b => b.Total" />
+
+    <TemplateColumn Context="b" Title="Действия">
+        <a href="@($"/bills/details?id={b.Id}")">Details</a>
+        <a href="@($"/bills/delete?id={b.Id}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>
+
+@code {
+    [SupplyParameterFromQuery] public int? propertyId { get; set; }
+
+    private ApplicationDbContext _db = default!;
+    private IQueryable<Bill> _items = default!;
+    public string PropertyTitle { get; set; } = "";
+
+    private int? _buildingId;
+    private string BackUrl => _buildingId.HasValue ? $"/properties?buildingId={_buildingId}" : "/properties";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _db = await DbFactory.CreateDbContextAsync();
+
+        if (!propertyId.HasValue)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        var prop = await _db.Properties
+            .AsNoTracking()
+            .Include(p => p.Building)
+                .ThenInclude(b => b.Street)
+                    .ThenInclude(s => s.District)
+                        .ThenInclude(d => d.City)
+            .FirstOrDefaultAsync(p => p.Id == propertyId.Value);
+
+        if (prop is null)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        _buildingId = prop.BuildingId;
+        PropertyTitle = $"{prop.Building.Street.District.City.Name}, {prop.Building.Street.Name}, {prop.Building.Number}, кв. {prop.Apartment}";
+
+        _items = _db.Bills
+            .AsNoTracking()
+            .Where(b => b.PropertyId == propertyId.Value)
+            .OrderByDescending(b => b.Period);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_db is not null)
+            await _db.DisposeAsync();
+    }
+}

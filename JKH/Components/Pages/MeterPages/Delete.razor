@@ -1,0 +1,107 @@
+@page "/meters/delete"
+@using Microsoft.EntityFrameworkCore
+@using JKH.Data
+@using JKH.Models
+@implements IAsyncDisposable
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Удалить счётчик</PageTitle>
+
+<h1>Удалить счётчик</h1>
+
+@if (_loading)
+{
+    <p>Загрузка...</p>
+}
+else if (_notFound)
+{
+    <div class="alert alert-warning">Счётчик не найден.</div>
+    <a class="btn btn-link" href="@BackUrl">Назад</a>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">@_error</div>
+    }
+
+    <div class="alert alert-warning">
+        Вы уверены, что хотите удалить счётчик: <b>@_title</b>?
+    </div>
+
+    <button class="btn btn-danger" @onclick="DeleteAsync">Удалить</button>
+    <a class="btn btn-link" href="@BackUrl">Отмена</a>
+}
+
+@code {
+    [SupplyParameterFromQuery] public int? id { get; set; }
+
+    private ApplicationDbContext _db = default!;
+    private bool _loading = true;
+    private bool _notFound = false;
+
+    private int _propertyId;
+    private string BackUrl => _propertyId != 0 ? $"/meters?propertyId={_propertyId}" : "/properties";
+
+    private string _title = "";
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _db = await DbFactory.CreateDbContextAsync();
+
+        if (!id.HasValue)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        var meter = await _db.Meters
+            .AsNoTracking()
+            .Include(m => m.ServiceType)
+            .FirstOrDefaultAsync(m => m.Id == id.Value);
+
+        if (meter is null)
+        {
+            _notFound = true;
+            _loading = false;
+            return;
+        }
+
+        _propertyId = meter.PropertyId;
+        _title = $"{meter.ServiceType.Name} ({meter.SerialNumber ?? "без серийного"})";
+
+        _loading = false;
+    }
+
+    private async Task DeleteAsync()
+    {
+        _error = null;
+
+        var meter = await _db.Meters.FirstOrDefaultAsync(m => m.Id == id!.Value);
+        if (meter is null)
+        {
+            _notFound = true;
+            return;
+        }
+
+        _db.Meters.Remove(meter);
+
+        try
+        {
+            await _db.SaveChangesAsync();
+            NavigationManager.NavigateTo(BackUrl);
+        }
+        catch (DbUpdateException)
+        {
+            _error = "Нельзя удалить счётчик: у него есть показания или он участвует в начислениях (BillLine). Сначала удалите/перенесите связанные данные.";
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_db is not null)
+            await _db.DisposeAsync();
+    }
+}

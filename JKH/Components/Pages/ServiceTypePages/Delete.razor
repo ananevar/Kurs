@@ -1,0 +1,98 @@
+@page "/servicetypes/delete"
+@using Microsoft.EntityFrameworkCore
+@using JKH.Data
+@using JKH.Models
+@implements IAsyncDisposable
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Удалить услугу</PageTitle>
+
+<h1>Удалить услугу</h1>
+
+@if (_loading)
+{
+    <p>Загрузка...</p>
+}
+else if (_notFound)
+{
+    <div class="alert alert-warning">Услуга не найдена.</div>
+    <a class="btn btn-link" href="/servicetypes">Назад</a>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">@_error</div>
+    }
+
+    <div class="alert alert-warning">
+        Вы уверены, что хотите удалить услугу: <b>@_name</b>?
+    </div>
+
+    <button class="btn btn-danger" @onclick="DeleteAsync">Удалить</button>
+    <a class="btn btn-link" href="/servicetypes">Отмена</a>
+}
+
+@code {
+    [SupplyParameterFromQuery] public int? id { get; set; }
+
+    private ApplicationDbContext _db = default!;
+    private bool _loading = true;
+    private bool _notFound = false;
+
+    private string _name = "";
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _db = await DbFactory.CreateDbContextAsync();
+
+        if (!id.HasValue)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        var entity = await _db.ServiceTypes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id.Value);
+        if (entity is null)
+        {
+            _notFound = true;
+            _loading = false;
+            return;
+        }
+
+        _name = entity.Name;
+        _loading = false;
+    }
+
+    private async Task DeleteAsync()
+    {
+        _error = null;
+
+        var entity = await _db.ServiceTypes.FirstOrDefaultAsync(x => x.Id == id!.Value);
+        if (entity is null)
+        {
+            _notFound = true;
+            return;
+        }
+
+        _db.ServiceTypes.Remove(entity);
+
+        try
+        {
+            await _db.SaveChangesAsync();
+            NavigationManager.NavigateTo("/servicetypes");
+        }
+        catch (DbUpdateException)
+        {
+            _error = "Нельзя удалить услугу: к ней привязаны счётчики или тарифы. Сначала удалите/перенесите связанные данные.";
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_db is not null)
+            await _db.DisposeAsync();
+    }
+}

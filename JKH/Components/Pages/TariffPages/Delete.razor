@@ -1,0 +1,132 @@
+@page "/tariffs/delete"
+@using Microsoft.EntityFrameworkCore
+@using JKH.Data
+@using JKH.Models
+@implements IAsyncDisposable
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Удалить тариф</PageTitle>
+
+<h1>Удалить тариф</h1>
+
+@if (_loading)
+{
+    <p>Загрузка...</p>
+}
+else if (_notFound)
+{
+    <div class="alert alert-warning">Тариф не найден.</div>
+    <a class="btn btn-link" href="/tariffs">Назад</a>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger">@_error</div>
+    }
+
+    <div class="alert alert-warning">
+        Удалить тариф: <b>@_title</b>?
+    </div>
+
+    <button class="btn btn-danger" @onclick="DeleteAsync">Удалить</button>
+    <a class="btn btn-link" href="@BackUrl">Отмена</a>
+}
+
+@code {
+    [SupplyParameterFromQuery] public int? id { get; set; }
+
+    private ApplicationDbContext _db = default!;
+    private bool _loading = true;
+    private bool _notFound = false;
+
+    private int _serviceTypeId;
+    private string BackUrl => _serviceTypeId > 0 ? $"/tariffs?serviceTypeId={_serviceTypeId}" : "/tariffs";
+
+    private string _title = "";
+    private string? _error;
+
+    private DateOnly _from;
+    private DateOnly? _to;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _db = await DbFactory.CreateDbContextAsync();
+
+        if (!id.HasValue)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        var t = await _db.Tariffs
+            .AsNoTracking()
+            .Include(x => x.ServiceType)
+            .FirstOrDefaultAsync(x => x.Id == id.Value);
+
+        if (t is null)
+        {
+            _notFound = true;
+            _loading = false;
+            return;
+        }
+
+        _serviceTypeId = t.ServiceTypeId;
+        _from = t.ValidFrom;
+        _to = t.ValidTo;
+
+        var toText = t.ValidTo.HasValue ? t.ValidTo.Value.ToString() : "∞";
+        _title = $"{t.ServiceType.Name}: {t.PricePerUnit} (c {t.ValidFrom} по {toText})";
+
+        _loading = false;
+    }
+
+    private async Task DeleteAsync()
+    {
+        _error = null;
+
+        // Вариант 1: запрещаем удалять, если тариф уже мог быть использован в счетах
+        // Проверка: есть ли хотя бы один BillLine по счетчику этой услуги,
+        // и период счета попадает в диапазон действия тарифа.
+        var used = await _db.BillLines
+            .AsNoTracking()
+            .Include(bl => bl.Bill)
+            .Include(bl => bl.Meter)
+            .AnyAsync(bl =>
+                bl.Meter.ServiceTypeId == _serviceTypeId &&
+                bl.Bill.Period >= _from &&
+                (_to == null || bl.Bill.Period <= _to));
+
+        if (used)
+        {
+            _error = "Нельзя удалить тариф: он уже использовался при начислениях (есть счета за этот период).";
+            return;
+        }
+
+        var entity = await _db.Tariffs.FirstOrDefaultAsync(x => x.Id == id!.Value);
+        if (entity is null)
+        {
+            _notFound = true;
+            return;
+        }
+
+        _db.Tariffs.Remove(entity);
+
+        try
+        {
+            await _db.SaveChangesAsync();
+            NavigationManager.NavigateTo(BackUrl);
+        }
+        catch (DbUpdateException)
+        {
+            _error = "Не удалось удалить тариф.";
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_db is not null)
+            await _db.DisposeAsync();
+    }
+}

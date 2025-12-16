@@ -1,0 +1,50 @@
+@page "/servicetypes"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using JKH.Data
+@using JKH.Models
+@implements IAsyncDisposable
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+
+<PageTitle>Услуги</PageTitle>
+
+<h1>Услуги</h1>
+
+<p>
+    <a href="/servicetypes/create">Добавить услугу</a>
+</p>
+
+<QuickGrid Class="table" Items="_items">
+    <PropertyColumn Title="Название" Property="s => s.Name" />
+    <PropertyColumn Title="Ед. изм." Property="s => s.Unit" />
+    <PropertyColumn Title="Счётчиков" Property="s => s.Meters.Count" />
+    <PropertyColumn Title="Тарифов" Property="s => s.Tariffs.Count" />
+
+    <TemplateColumn Context="s" Title="Действия">
+        <a href="@($"/servicetypes/edit?id={s.Id}")">Edit</a>
+        |
+        <a href="@($"/servicetypes/delete?id={s.Id}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>
+
+@code {
+    private ApplicationDbContext _db = default!;
+    private IQueryable<ServiceType> _items = default!;
+
+    protected override void OnInitialized()
+    {
+        _db = DbFactory.CreateDbContext();
+
+        _items = _db.ServiceTypes
+            .Include(x => x.Meters)
+            .Include(x => x.Tariffs)
+            .AsNoTracking()
+            .OrderBy(x => x.Name);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_db is not null)
+            await _db.DisposeAsync();
+    }
+}

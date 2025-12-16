@@ -1,0 +1,154 @@
+@page "/readings/create"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.EntityFrameworkCore
+@using JKH.Data
+@using JKH.Models
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Добавить показание</PageTitle>
+
+<h1>Добавить показание</h1>
+<hr />
+
+@if (_loading)
+{
+    <p><em>Загрузка...</em></p>
+}
+else
+{
+    <EditForm Model="_model" OnValidSubmit="CreateAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="text-danger" />
+
+        <div class="mb-3">
+            <label class="form-label">Месяц (выберите любую дату месяца)</label>
+            <InputDate class="form-control" @bind-Value="_model.Date" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Показание</label>
+            <InputNumber class="form-control" @bind-Value="_model.Value" />
+            <ValidationMessage For="() => _model.Value" class="text-danger" />
+        </div>
+
+        @if (_prevValue.HasValue)
+        {
+            <div class="form-text">
+                Предыдущее показание: @_prevValue.Value
+            </div>
+        }
+
+        <button type="submit" class="btn btn-primary">Создать</button>
+        <a class="btn btn-link" href="@BackUrl">Отмена</a>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger mt-3">@_error</div>
+        }
+    </EditForm>
+}
+
+@code {
+    [SupplyParameterFromQuery] public int? meterId { get; set; }
+
+    private bool _loading = true;
+    private string? _error;
+
+    private decimal? _prevValue;
+    private int _propertyId;
+
+    private string BackUrl => meterId.HasValue ? $"/readings?meterId={meterId.Value}" : "/properties";
+
+    private Vm _model = new();
+
+    private sealed class Vm
+    {
+        public DateTime Date { get; set; } = DateTime.Today;
+
+        [Range(0, 999999999, ErrorMessage = "Введите корректное значение")]
+        public decimal Value { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!meterId.HasValue)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var meter = await db.Meters.AsNoTracking().FirstOrDefaultAsync(m => m.Id == meterId.Value);
+        if (meter is null)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        _propertyId = meter.PropertyId;
+
+        _prevValue = await db.MeterReadings
+            .AsNoTracking()
+            .Where(r => r.MeterId == meterId.Value)
+            .OrderByDescending(r => r.ReadingDate)
+            .Select(r => (decimal?)r.Value)
+            .FirstOrDefaultAsync();
+
+        _loading = false;
+    }
+
+    private async Task CreateAsync()
+    {
+        _error = null;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        // нормализуем к первому числу месяца
+        var normalized = new DateOnly(_model.Date.Year, _model.Date.Month, 1);
+
+        // проверка: одно показание в месяц
+        var existsForMonth = await db.MeterReadings
+            .AsNoTracking()
+            .AnyAsync(r => r.MeterId == meterId!.Value && r.ReadingDate == normalized);
+
+        if (existsForMonth)
+        {
+            _error = "Показание за этот месяц уже существует.";
+            return;
+        }
+
+        // проверка: не меньше предыдущего
+        var prev = await db.MeterReadings
+            .AsNoTracking()
+            .Where(r => r.MeterId == meterId!.Value)
+            .OrderByDescending(r => r.ReadingDate)
+            .Select(r => (decimal?)r.Value)
+            .FirstOrDefaultAsync();
+
+        if (prev.HasValue && _model.Value < prev.Value)
+        {
+            _error = $"Новое показание не может быть меньше предыдущего ({prev.Value}).";
+            return;
+        }
+
+        db.MeterReadings.Add(new MeterReading
+        {
+            MeterId = meterId!.Value,
+            ReadingDate = normalized,
+            Value = _model.Value,
+            EnteredAt = DateTime.UtcNow
+        });
+
+        try
+        {
+            await db.SaveChangesAsync();
+            NavigationManager.NavigateTo(BackUrl);
+        }
+        catch (DbUpdateException)
+        {
+            _error = "Не удалось сохранить показание (возможен конфликт по месяцу).";
+        }
+    }
+}

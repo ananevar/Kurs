@@ -1,0 +1,146 @@
+@page "/meters/edit"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.EntityFrameworkCore
+@using JKH.Data
+@using JKH.Models
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Редактировать счётчик</PageTitle>
+
+<h1>Редактировать счётчик</h1>
+<hr />
+
+@if (_loading)
+{
+    <p><em>Загрузка...</em></p>
+}
+else if (_notFound)
+{
+    <div class="alert alert-warning">Счётчик не найден.</div>
+    <a class="btn btn-link" href="@BackUrl">Назад</a>
+}
+else
+{
+    <EditForm Model="_model" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="text-danger" />
+
+        <div class="mb-3">
+            <label class="form-label">Услуга</label>
+            <select class="form-select" @bind="_model.ServiceTypeId">
+                <option value="0">-- выберите --</option>
+                @foreach (var s in _serviceTypes)
+                {
+                    <option value="@s.Id">@s.Name (@s.Unit)</option>
+                }
+            </select>
+            <ValidationMessage For="() => _model.ServiceTypeId" class="text-danger" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Серийный номер</label>
+            <InputText class="form-control" @bind-Value="_model.SerialNumber" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Дата установки</label>
+            <InputDate class="form-control" @bind-Value="_model.InstalledAt" />
+        </div>
+
+        <div class="form-check mb-3">
+            <InputCheckbox class="form-check-input" @bind-Value="_model.IsActive" />
+            <label class="form-check-label">Активен</label>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+        <a class="btn btn-link" href="@BackUrl">Отмена</a>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger mt-3">@_error</div>
+        }
+    </EditForm>
+}
+
+@code {
+    [SupplyParameterFromQuery] public int id { get; set; }
+
+    private bool _loading = true;
+    private bool _notFound = false;
+    private string? _error;
+
+    private int _propertyId;
+    private string BackUrl => _propertyId != 0 ? $"/meters?propertyId={_propertyId}" : "/properties";
+
+    private List<ServiceType> _serviceTypes = new();
+    private MeterEditVm _model = new();
+
+    private sealed class MeterEditVm
+    {
+        [Range(1, int.MaxValue, ErrorMessage = "Выберите услугу")]
+        public int ServiceTypeId { get; set; }
+
+        [MaxLength(100)]
+        public string? SerialNumber { get; set; }
+
+        public DateTime? InstalledAt { get; set; }
+
+        public bool IsActive { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var meter = await db.Meters.AsNoTracking().FirstOrDefaultAsync(m => m.Id == id);
+        if (meter is null)
+        {
+            _notFound = true;
+            _loading = false;
+            return;
+        }
+
+        _propertyId = meter.PropertyId;
+
+        _serviceTypes = await db.ServiceTypes.AsNoTracking().OrderBy(x => x.Name).ToListAsync();
+
+        _model.ServiceTypeId = meter.ServiceTypeId;
+        _model.SerialNumber = meter.SerialNumber;
+        _model.InstalledAt = meter.InstalledAt.HasValue
+            ? meter.InstalledAt.Value.ToDateTime(TimeOnly.MinValue)
+            : (DateTime?)null;
+        _model.IsActive = meter.IsActive;
+
+        _loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var entity = await db.Meters.FirstOrDefaultAsync(m => m.Id == id);
+        if (entity is null)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        entity.ServiceTypeId = _model.ServiceTypeId;
+        entity.SerialNumber = string.IsNullOrWhiteSpace(_model.SerialNumber) ? null : _model.SerialNumber.Trim();
+        entity.InstalledAt = _model.InstalledAt.HasValue ? DateOnly.FromDateTime(_model.InstalledAt.Value) : null;
+        entity.IsActive = _model.IsActive;
+
+        try
+        {
+            await db.SaveChangesAsync();
+            NavigationManager.NavigateTo(BackUrl);
+        }
+        catch (DbUpdateException)
+        {
+            _error = "Не удалось сохранить изменения. Проверьте данные.";
+        }
+    }
+}

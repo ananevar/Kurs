@@ -1,0 +1,86 @@
+@page "/readings"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using JKH.Data
+@using JKH.Models
+@implements IAsyncDisposable
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Показания</PageTitle>
+
+<h1>Показания — @MeterTitle</h1>
+
+<p>
+    <a href="@($"/readings/create?meterId={meterId}")">Добавить показание</a>
+</p>
+<p>
+    <a href="@BackUrl">Назад</a>
+</p>
+
+<QuickGrid Class="table" Items="_items">
+    <PropertyColumn Title="Период" Property="r => r.ReadingDate" />
+    <PropertyColumn Title="Значение" Property="r => r.Value" />
+    <PropertyColumn Title="Введено" Property="r => r.EnteredAt" />
+
+    <TemplateColumn Context="r" Title="Действия">
+        <a href="@($"/readings/edit?id={r.Id}")">Edit</a>
+        |
+        <a href="@($"/readings/delete?id={r.Id}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>
+
+@code {
+    [SupplyParameterFromQuery] public int? meterId { get; set; }
+
+    private ApplicationDbContext _db = default!;
+    private IQueryable<MeterReading> _items = default!;
+
+    public string MeterTitle { get; set; } = "";
+
+    private int _propertyId;
+    private string BackUrl => _propertyId != 0 ? $"/meters?propertyId={_propertyId}" : "/properties";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _db = await DbFactory.CreateDbContextAsync();
+
+        if (!meterId.HasValue)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        var meter = await _db.Meters
+            .AsNoTracking()
+            .Include(m => m.ServiceType)
+            .Include(m => m.Property)
+                .ThenInclude(p => p.Building)
+                    .ThenInclude(b => b.Street)
+                        .ThenInclude(s => s.District)
+                            .ThenInclude(d => d.City)
+            .FirstOrDefaultAsync(m => m.Id == meterId.Value);
+
+        if (meter is null)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        _propertyId = meter.PropertyId;
+
+        var addr = $"{meter.Property.Building.Street.District.City.Name}, {meter.Property.Building.Street.Name}, {meter.Property.Building.Number}, кв. {meter.Property.Apartment}";
+        MeterTitle = $"{meter.ServiceType.Name} — {addr}";
+
+        _items = _db.MeterReadings
+            .AsNoTracking()
+            .Where(r => r.MeterId == meterId.Value)
+            .OrderByDescending(r => r.ReadingDate);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_db is not null)
+            await _db.DisposeAsync();
+    }
+}

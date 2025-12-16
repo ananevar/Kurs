@@ -1,0 +1,137 @@
+@page "/meters/create"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.EntityFrameworkCore
+@using JKH.Data
+@using JKH.Models
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Добавить счётчик</PageTitle>
+
+<h1>Добавить счётчик</h1>
+<hr />
+
+@if (_loading)
+{
+    <p><em>Загрузка...</em></p>
+}
+else
+{
+    <EditForm Model="_model" OnValidSubmit="CreateAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="text-danger" />
+
+        <div class="mb-3">
+            <label class="form-label">Услуга</label>
+            <select class="form-select" @bind="_model.ServiceTypeId">
+                <option value="0">-- выберите --</option>
+                @foreach (var s in _serviceTypes)
+                {
+                    <option value="@s.Id">@s.Name (@s.Unit)</option>
+                }
+            </select>
+            <ValidationMessage For="() => _model.ServiceTypeId" class="text-danger" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Серийный номер</label>
+            <InputText class="form-control" @bind-Value="_model.SerialNumber" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Дата установки</label>
+            <InputDate class="form-control" @bind-Value="_model.InstalledAt" />
+        </div>
+
+        <div class="form-check mb-3">
+            <InputCheckbox class="form-check-input" @bind-Value="_model.IsActive" />
+            <label class="form-check-label">Активен</label>
+        </div>
+
+        <button type="submit" class="btn btn-primary" disabled="@(!_canSave)">Создать</button>
+        <a class="btn btn-link" href="@BackUrl">Отмена</a>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger mt-3">@_error</div>
+        }
+    </EditForm>
+}
+
+@code {
+    [SupplyParameterFromQuery] public int? propertyId { get; set; }
+
+    private bool _loading = true;
+    private string? _error;
+
+    private List<ServiceType> _serviceTypes = new();
+
+    private string BackUrl => propertyId.HasValue ? $"/meters?propertyId={propertyId.Value}" : "/properties";
+
+    private bool _canSave => propertyId.HasValue && _model.ServiceTypeId > 0;
+
+    private MeterCreateVm _model = new();
+
+    private sealed class MeterCreateVm
+    {
+        [Range(1, int.MaxValue, ErrorMessage = "Выберите услугу")]
+        public int ServiceTypeId { get; set; }
+
+        [MaxLength(100)]
+        public string? SerialNumber { get; set; }
+
+        public DateTime? InstalledAt { get; set; }
+
+        public bool IsActive { get; set; } = true;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!propertyId.HasValue)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        // проверка property существует
+        var exists = await db.Properties.AsNoTracking().AnyAsync(p => p.Id == propertyId.Value);
+        if (!exists)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        _serviceTypes = await db.ServiceTypes.AsNoTracking().OrderBy(x => x.Name).ToListAsync();
+        _loading = false;
+    }
+
+    private async Task CreateAsync()
+    {
+        _error = null;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var entity = new Meter
+        {
+            PropertyId = propertyId!.Value,
+            ServiceTypeId = _model.ServiceTypeId,
+            SerialNumber = string.IsNullOrWhiteSpace(_model.SerialNumber) ? null : _model.SerialNumber.Trim(),
+            InstalledAt = _model.InstalledAt.HasValue ? DateOnly.FromDateTime(_model.InstalledAt.Value) : null,
+            IsActive = _model.IsActive
+        };
+
+        db.Meters.Add(entity);
+
+        try
+        {
+            await db.SaveChangesAsync();
+            NavigationManager.NavigateTo(BackUrl);
+        }
+        catch (DbUpdateException)
+        {
+            _error = "Не удалось сохранить счётчик. Проверьте данные (возможен конфликт/ограничение в БД).";
+        }
+    }
+}

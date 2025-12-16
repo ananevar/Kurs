@@ -1,0 +1,131 @@
+@page "/tariffs/create"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.EntityFrameworkCore
+@using JKH.Data
+@using JKH.Models
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Добавить тариф</PageTitle>
+
+<h1>Добавить тариф</h1>
+<hr />
+
+@if (_loading)
+{
+    <p><em>Загрузка...</em></p>
+}
+else
+{
+    <EditForm Model="_model" OnValidSubmit="CreateAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="text-danger" />
+
+        <div class="mb-3">
+            <label class="form-label">Услуга</label>
+            <select class="form-select" @bind="_model.ServiceTypeId">
+                <option value="0">-- выберите --</option>
+                @foreach (var s in _serviceTypes)
+                {
+                    <option value="@s.Id">@s.Name (@s.Unit)</option>
+                }
+            </select>
+            <ValidationMessage For="() => _model.ServiceTypeId" class="text-danger" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Цена за единицу</label>
+            <InputNumber class="form-control" @bind-Value="_model.PricePerUnit" />
+            <ValidationMessage For="() => _model.PricePerUnit" class="text-danger" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Действует с</label>
+            <InputDate class="form-control" @bind-Value="_model.ValidFrom" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Действует по (необязательно)</label>
+            <InputDate class="form-control" @bind-Value="_model.ValidTo" />
+        </div>
+
+        <button type="submit" class="btn btn-primary">Создать</button>
+        <a class="btn btn-link" href="@BackUrl">Отмена</a>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger mt-3">@_error</div>
+        }
+    </EditForm>
+}
+
+@code {
+    [SupplyParameterFromQuery] public int? serviceTypeId { get; set; }
+
+    private bool _loading = true;
+    private string? _error;
+
+    private List<ServiceType> _serviceTypes = new();
+
+    private string BackUrl => serviceTypeId.HasValue && serviceTypeId.Value > 0
+        ? $"/tariffs?serviceTypeId={serviceTypeId.Value}"
+        : "/tariffs";
+
+    private Vm _model = new();
+
+    private sealed class Vm
+    {
+        [Range(1, int.MaxValue, ErrorMessage = "Выберите услугу")]
+        public int ServiceTypeId { get; set; }
+
+        [Range(0.000001, 999999999, ErrorMessage = "Введите цену")]
+        public decimal PricePerUnit { get; set; }
+
+        public DateTime ValidFrom { get; set; } = DateTime.Today;
+        public DateTime? ValidTo { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _serviceTypes = await db.ServiceTypes.AsNoTracking().OrderBy(x => x.Name).ToListAsync();
+
+        if (serviceTypeId.HasValue && serviceTypeId.Value > 0)
+            _model.ServiceTypeId = serviceTypeId.Value;
+
+        _loading = false;
+    }
+
+    private async Task CreateAsync()
+    {
+        _error = null;
+
+        if (_model.ValidTo.HasValue && _model.ValidTo.Value.Date < _model.ValidFrom.Date)
+        {
+            _error = "Дата окончания не может быть раньше даты начала.";
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var entity = new Tariff
+        {
+            ServiceTypeId = _model.ServiceTypeId,
+            PricePerUnit = _model.PricePerUnit,
+            ValidFrom = DateOnly.FromDateTime(_model.ValidFrom),
+            ValidTo = _model.ValidTo.HasValue ? DateOnly.FromDateTime(_model.ValidTo.Value) : null
+        };
+
+        db.Tariffs.Add(entity);
+
+        try
+        {
+            await db.SaveChangesAsync();
+            NavigationManager.NavigateTo(BackUrl);
+        }
+        catch (DbUpdateException)
+        {
+            _error = "Не удалось сохранить тариф. Проверьте ограничения/уникальность (возможен конфликт по периодам).";
+        }
+    }
+}

@@ -1,0 +1,223 @@
+@page "/bills/generate"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.EntityFrameworkCore
+@using JKH.Data
+@using JKH.Models
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Сформировать счет</PageTitle>
+
+<h1>Сформировать счет</h1>
+<p>@PropertyTitle</p>
+<hr />
+
+@if (_loading)
+{
+    <p><em>Загрузка...</em></p>
+}
+else
+{
+    <EditForm Model="_model" OnValidSubmit="GenerateAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="text-danger" />
+
+        <div class="mb-3">
+            <label class="form-label">Месяц (любой день месяца)</label>
+            <InputDate class="form-control" @bind-Value="_model.Month" />
+            <div class="form-text">Счет будет создан на 1-е число выбранного месяца.</div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Сформировать</button>
+        <a class="btn btn-link" href="@BackUrl">Отмена</a>
+    </EditForm>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger mt-3">@_error</div>
+    }
+
+    @if (_warnings.Count > 0)
+    {
+        <div class="alert alert-warning mt-3">
+            <b>Предупреждения:</b>
+            <ul>
+                @foreach (var w in _warnings)
+                {
+                    <li>@w</li>
+                }
+            </ul>
+        </div>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery] public int? propertyId { get; set; }
+
+    private bool _loading = true;
+    private string? _error;
+    private List<string> _warnings = new();
+
+    public string PropertyTitle { get; set; } = "";
+
+    private string BackUrl => propertyId.HasValue ? $"/bills?propertyId={propertyId.Value}" : "/properties";
+
+    private Vm _model = new();
+
+    private sealed class Vm
+    {
+        public DateTime Month { get; set; } = DateTime.Today;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!propertyId.HasValue)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var prop = await db.Properties
+            .AsNoTracking()
+            .Include(p => p.Building)
+                .ThenInclude(b => b.Street)
+                    .ThenInclude(s => s.District)
+                        .ThenInclude(d => d.City)
+            .FirstOrDefaultAsync(p => p.Id == propertyId.Value);
+
+        if (prop is null)
+        {
+            NavigationManager.NavigateTo("/notfound");
+            return;
+        }
+
+        PropertyTitle = $"{prop.Building.Street.District.City.Name}, {prop.Building.Street.Name}, {prop.Building.Number}, кв. {prop.Apartment}";
+        _loading = false;
+    }
+
+    private static DateOnly NormalizeMonth(DateTime dt) => new(dt.Year, dt.Month, 1);
+
+    private async Task GenerateAsync()
+    {
+        _error = null;
+        _warnings = new();
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var period = NormalizeMonth(_model.Month);
+
+        // проверим, что квартира есть
+        var propExists = await db.Properties.AsNoTracking().AnyAsync(p => p.Id == propertyId!.Value);
+        if (!propExists)
+        {
+            _error = "Квартира не найдена.";
+            return;
+        }
+
+        // берем активные счетчики квартиры
+        var meters = await db.Meters
+            .AsNoTracking()
+            .Where(m => m.PropertyId == propertyId!.Value && m.IsActive)
+            .ToListAsync();
+
+        if (meters.Count == 0)
+        {
+            _error = "Нет активных счётчиков у этой квартиры.";
+            return;
+        }
+
+        var bill = new Bill
+        {
+            PropertyId = propertyId!.Value,
+            Period = period,
+            CreatedAt = DateTime.UtcNow,
+            Total = 0m,
+            Lines = new List<BillLine>()
+        };
+
+        foreach (var m in meters)
+        {
+            // текущие показания за период (строго по первому числу месяца)
+            var curr = await db.MeterReadings.AsNoTracking()
+                .Where(r => r.MeterId == m.Id && r.ReadingDate == period)
+                .OrderByDescending(r => r.ReadingDate)
+                .FirstOrDefaultAsync();
+
+            if (curr is null)
+            {
+                _warnings.Add($"Нет показания за {period} для счётчика #{m.Id} (ServiceTypeId={m.ServiceTypeId}). Строка не добавлена.");
+                continue;
+            }
+
+            // предыдущее показание (любое до периода)
+            var prev = await db.MeterReadings.AsNoTracking()
+                .Where(r => r.MeterId == m.Id && r.ReadingDate < period)
+                .OrderByDescending(r => r.ReadingDate)
+                .FirstOrDefaultAsync();
+
+            var prevValue = prev?.Value ?? 0m;
+            var currValue = curr.Value;
+
+            if (prev is not null && currValue < prevValue)
+            {
+                _warnings.Add($"Счётчик #{m.Id}: текущее показание меньше предыдущего. Строка не добавлена.");
+                continue;
+            }
+
+            var consumption = currValue - prevValue;
+
+            // тариф на период
+            var tariff = await db.Tariffs.AsNoTracking()
+                .Where(t => t.ServiceTypeId == m.ServiceTypeId
+                            && t.ValidFrom <= period
+                            && (t.ValidTo == null || t.ValidTo >= period))
+                .OrderByDescending(t => t.ValidFrom)
+                .FirstOrDefaultAsync();
+
+            if (tariff is null)
+            {
+                _warnings.Add($"Нет тарифа для ServiceTypeId={m.ServiceTypeId} на период {period}. Строка не добавлена.");
+                continue;
+            }
+
+            var amount = consumption * tariff.PricePerUnit;
+
+            bill.Lines.Add(new BillLine
+            {
+                MeterId = m.Id,
+
+                PrevReadingId = prev?.Id,
+                CurrReadingId = curr.Id,
+
+                PrevValue = prevValue,
+                CurrValue = currValue,
+                Consumption = consumption,
+
+                TariffPrice = tariff.PricePerUnit,
+                Amount = amount
+            });
+        }
+
+        if (bill.Lines.Count == 0)
+        {
+            _error = "Счет не создан: нет строк (нет показаний/тарифов).";
+            return;
+        }
+
+        bill.Total = bill.Lines.Sum(x => x.Amount);
+
+        db.Bills.Add(bill);
+
+        try
+        {
+            await db.SaveChangesAsync();
+            NavigationManager.NavigateTo($"/bills/details?id={bill.Id}");
+        }
+        catch (DbUpdateException)
+        {
+            _error = "Не удалось создать счет. Возможно, счет за этот месяц уже существует.";
+        }
+    }
+}

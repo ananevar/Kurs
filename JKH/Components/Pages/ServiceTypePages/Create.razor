@@ -1,0 +1,66 @@
+@page "/servicetypes/create"
+@using Microsoft.EntityFrameworkCore
+@using JKH.Data
+@using JKH.Models
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Добавить услугу</PageTitle>
+
+<h1>Добавить услугу</h1>
+<hr />
+
+<EditForm Model="_model" OnValidSubmit="CreateAsync">
+    <DataAnnotationsValidator />
+    <ValidationSummary class="text-danger" />
+
+    <div class="mb-3">
+        <label class="form-label">Название</label>
+        <InputText class="form-control" @bind-Value="_model.Name" />
+        <ValidationMessage For="() => _model.Name" class="text-danger" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Единица измерения</label>
+        <InputText class="form-control" @bind-Value="_model.Unit" />
+        <ValidationMessage For="() => _model.Unit" class="text-danger" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Создать</button>
+    <a class="btn btn-link" href="/servicetypes">Отмена</a>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="alert alert-danger mt-3">@_error</div>
+    }
+</EditForm>
+
+@code {
+    private ServiceType _model = new();
+    private string? _error;
+
+    private async Task CreateAsync()
+    {
+        _error = null;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var entity = new ServiceType
+        {
+            Name = _model.Name.Trim(),
+            Unit = _model.Unit.Trim()
+        };
+
+        db.ServiceTypes.Add(entity);
+
+        try
+        {
+            await db.SaveChangesAsync();
+            NavigationManager.NavigateTo("/servicetypes");
+        }
+        catch (DbUpdateException)
+        {
+            _error = "Не удалось сохранить. Возможно, услуга с таким названием уже существует.";
+        }
+    }
+}

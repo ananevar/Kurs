@@ -1,0 +1,100 @@
+@page "/tariffs"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using JKH.Data
+@using JKH.Models
+@implements IAsyncDisposable
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+
+<PageTitle>Тарифы</PageTitle>
+
+<h1>Тарифы</h1>
+
+<p>
+    <a href="@CreateUrl">Добавить тариф</a>
+</p>
+
+@if (_serviceTypes.Count > 0)
+{
+    <div class="mb-3">
+        <label class="form-label">Фильтр по услуге</label>
+        <select class="form-select" @bind="SelectedServiceTypeId">
+            <option value="0">-- все --</option>
+            @foreach (var s in _serviceTypes)
+            {
+                <option value="@s.Id">@s.Name (@s.Unit)</option>
+            }
+        </select>
+    </div>
+}
+
+<QuickGrid Class="table" Items="_items">
+    <PropertyColumn Title="Услуга" Property="t => t.ServiceType.Name" />
+    <PropertyColumn Title="Цена за ед." Property="t => t.PricePerUnit" />
+    <PropertyColumn Title="Действует с" Property="t => t.ValidFrom" />
+    <PropertyColumn Title="Действует по" Property="t => t.ValidTo" />
+
+    <TemplateColumn Context="t" Title="Действия">
+        <a href="@($"/tariffs/edit?id={t.Id}")">Edit</a>
+        |
+        <a href="@($"/tariffs/delete?id={t.Id}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>
+
+@code {
+    private ApplicationDbContext _db = default!;
+    private IQueryable<Tariff> _items = Enumerable.Empty<Tariff>().AsQueryable();
+
+    private List<ServiceType> _serviceTypes = new();
+    private int _selectedServiceTypeId = 0;
+
+    private string CreateUrl =>
+        _selectedServiceTypeId > 0
+            ? $"/tariffs/create?serviceTypeId={_selectedServiceTypeId}"
+            : "/tariffs/create";
+
+    // Важно: биндимся на свойство, чтобы при изменении вызывать BuildQuery()
+    private int SelectedServiceTypeId
+    {
+        get => _selectedServiceTypeId;
+        set
+        {
+            if (_selectedServiceTypeId == value) return;
+            _selectedServiceTypeId = value;
+            BuildQuery();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _db = await DbFactory.CreateDbContextAsync();
+
+        _serviceTypes = await _db.ServiceTypes
+            .AsNoTracking()
+            .OrderBy(x => x.Name)
+            .ToListAsync();
+
+        BuildQuery();
+    }
+
+    private void BuildQuery()
+    {
+        var q = _db.Tariffs
+            .Include(t => t.ServiceType)
+            .AsNoTracking()
+            .AsQueryable();
+
+        if (_selectedServiceTypeId > 0)
+            q = q.Where(t => t.ServiceTypeId == _selectedServiceTypeId);
+
+        _items = q
+            .OrderByDescending(t => t.ValidFrom)
+            .ThenBy(t => t.ServiceType.Name);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_db is not null)
+            await _db.DisposeAsync();
+    }
+}

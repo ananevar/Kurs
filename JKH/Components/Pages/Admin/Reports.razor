@@ -1,0 +1,333 @@
+@page "/admin/reports"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Authorization
+@using JKH.Data
+@using JKH.Models
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+        <PageTitle>Админ-отчёты</PageTitle>
+
+        <h1>Админ-отчёты</h1>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-3">
+                <label class="form-label">Город</label>
+                <select class="form-select" value="@CityId" @onchange="OnCityChanged">
+                    <option value="0">-- все --</option>
+                    @foreach (var c in _cities)
+                    {
+                        <option value="@c.Id">@c.Name</option>
+                    }
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Район</label>
+                <select class="form-select" value="@DistrictId" @onchange="OnDistrictChanged" disabled="@(CityId==0)">
+                    <option value="0">-- все --</option>
+                    @foreach (var d in _districts)
+                    {
+                        <option value="@d.Id">@d.Name</option>
+                    }
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Дом</label>
+                <select class="form-select" value="@BuildingId" @onchange="OnBuildingChanged" disabled="@(DistrictId==0)">
+                    <option value="0">-- все --</option>
+                    @foreach (var b in _buildings)
+                    {
+                        <option value="@b.Id">@b.Number</option>
+                    }
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Период</label>
+                <div class="d-flex gap-2">
+                    <input class="form-control" type="month" value="@FromMonth" @onchange="OnFromMonthChanged" />
+                    <input class="form-control" type="month" value="@ToMonth" @onchange="OnToMonthChanged" />
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2 mb-3">
+            <button class="btn btn-primary" @onclick="LoadReportAsync">Построить</button>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger">@_error</div>
+        }
+
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="card p-3">
+                    <div class="text-muted">Задолженность за период</div>
+                    <div style="font-size:1.4rem"><b>@_total.ToString("0.00")</b></div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card p-3">
+                    <div class="text-muted">Счетов за период</div>
+                    <div style="font-size:1.4rem"><b>@_billCount</b></div>
+                </div>
+            </div>
+        </div>
+
+        <hr />
+
+        <h3>Динамика задолженности по месяцам</h3>
+        <div id="chartMonthly" style="height:420px;"></div>
+
+        <h3 class="mt-4">Структура задолженности по услугам</h3>
+        <div id="chartServices" style="height:420px;"></div>
+
+@code {
+    private ApplicationDbContext _db = default!;
+
+    private List<City> _cities = new();
+    private List<District> _districts = new();
+    private List<Building> _buildings = new();
+
+    private int CityId { get; set; } = 0;
+    private int DistrictId { get; set; } = 0;
+    private int BuildingId { get; set; } = 0;
+
+    // input type="month" работает со строкой "YYYY-MM"
+    private string FromMonth { get; set; } = $"{DateTime.Today:yyyy-MM}";
+    private string ToMonth { get; set; } = $"{DateTime.Today:yyyy-MM}";
+
+    private string? _error;
+    private decimal _total;
+    private int _billCount;
+
+    private sealed record MonthlyPoint(DateOnly Period, decimal Total);
+    private sealed record ServicePoint(string Service, decimal Total);
+
+    // Плоская строка отчёта (после ToListAsync -> LINQ to Objects)
+    private sealed record ReportLine(DateOnly Period, string ServiceName, decimal Amount);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _db = await DbFactory.CreateDbContextAsync();
+        _cities = await _db.Cities.AsNoTracking().OrderBy(x => x.Name).ToListAsync();
+    }
+
+    private async Task OnCityChanged(ChangeEventArgs e)
+    {
+        CityId = ParseInt(e.Value);
+        DistrictId = 0;
+        BuildingId = 0;
+        _districts = new();
+        _buildings = new();
+
+        if (CityId == 0) return;
+
+        _districts = await _db.Districts.AsNoTracking()
+            .Where(d => d.CityId == CityId)
+            .OrderBy(d => d.Name)
+            .ToListAsync();
+    }
+
+    private async Task OnDistrictChanged(ChangeEventArgs e)
+    {
+        DistrictId = ParseInt(e.Value);
+        BuildingId = 0;
+        _buildings = new();
+
+        if (DistrictId == 0) return;
+
+        _buildings = await _db.Buildings.AsNoTracking()
+            .Include(b => b.Street)
+            .Where(b => b.Street.DistrictId == DistrictId)
+            .OrderBy(b => b.Number)
+            .ToListAsync();
+    }
+
+    private Task OnBuildingChanged(ChangeEventArgs e)
+    {
+        BuildingId = ParseInt(e.Value);
+        return Task.CompletedTask;
+    }
+
+    private Task OnFromMonthChanged(ChangeEventArgs e)
+    {
+        FromMonth = (e.Value?.ToString() ?? $"{DateTime.Today:yyyy-MM}");
+        return Task.CompletedTask;
+    }
+
+    private Task OnToMonthChanged(ChangeEventArgs e)
+    {
+        ToMonth = (e.Value?.ToString() ?? $"{DateTime.Today:yyyy-MM}");
+        return Task.CompletedTask;
+    }
+
+    private static int ParseInt(object? v)
+        => int.TryParse(v?.ToString(), out var x) ? x : 0;
+
+    private static bool TryParseMonth(string yyyyMm, out DateOnly result)
+    {
+        result = default;
+        var parts = (yyyyMm ?? "").Split('-');
+        if (parts.Length != 2) return false;
+        if (!int.TryParse(parts[0], out var y)) return false;
+        if (!int.TryParse(parts[1], out var m)) return false;
+        if (m < 1 || m > 12) return false;
+        result = new DateOnly(y, m, 1);
+        return true;
+    }
+
+    private async Task LoadReportAsync()
+    {
+        try
+        {
+            _error = null;
+            _total = 0;
+            _billCount = 0;
+
+            // ВАЖНО: не используем переменную "from" (контекстное ключевое слово LINQ)
+            if (!TryParseMonth(FromMonth, out var fromPeriod) || !TryParseMonth(ToMonth, out var toPeriod))
+            {
+                _error = "Неверный период (ожидается YYYY-MM).";
+                return;
+            }
+            if (toPeriod < fromPeriod)
+            {
+                _error = "Период 'по' не может быть меньше периода 'с'.";
+                return;
+            }
+
+            // 1) Кол-во счетов считаем отдельным простым запросом
+            var billsQ = _db.Bills.AsNoTracking()
+                .Join(_db.Properties.AsNoTracking(), b => b.PropertyId, p => p.Id, (b, p) => new { b, p })
+                .Join(_db.Buildings.AsNoTracking(), bp => bp.p.BuildingId, bu => bu.Id, (bp, bu) => new { bp.b, bp.p, bu })
+                .Join(_db.Streets.AsNoTracking(), bpu => bpu.bu.StreetId, s => s.Id, (bpu, s) => new { bpu.b, bpu.p, bpu.bu, s })
+                .Join(_db.Districts.AsNoTracking(), bpus => bpus.s.DistrictId, d => d.Id, (bpus, d) => new { bpus.b, bpus.p, bpus.bu, bpus.s, d })
+                .Where(x => x.b.Period >= fromPeriod && x.b.Period <= toPeriod)
+                .AsQueryable();
+
+            if (BuildingId > 0)
+                billsQ = billsQ.Where(x => x.bu.Id == BuildingId);
+            else if (DistrictId > 0)
+                billsQ = billsQ.Where(x => x.d.Id == DistrictId);
+            else if (CityId > 0)
+                billsQ = billsQ.Where(x => x.d.CityId == CityId);
+
+            _billCount = await billsQ.Select(x => x.b.Id).Distinct().CountAsync();
+
+            // 2) Строки для отчёта: вытаскиваем в память и агрегируем уже на клиенте
+            var linesQ =
+                from bl in _db.BillLines.AsNoTracking()
+                join b in _db.Bills.AsNoTracking() on bl.BillId equals b.Id
+                join m in _db.Meters.AsNoTracking() on bl.MeterId equals m.Id
+                join st in _db.ServiceTypes.AsNoTracking() on m.ServiceTypeId equals st.Id
+                join p in _db.Properties.AsNoTracking() on b.PropertyId equals p.Id
+                join bu in _db.Buildings.AsNoTracking() on p.BuildingId equals bu.Id
+                join s in _db.Streets.AsNoTracking() on bu.StreetId equals s.Id
+                join d in _db.Districts.AsNoTracking() on s.DistrictId equals d.Id
+                where b.Period >= fromPeriod && b.Period <= toPeriod
+                select new
+                {
+                    b.Period,
+                    ServiceName = st.Name,
+                    bl.Amount,
+                    CityId = d.CityId,
+                    DistrictId = d.Id,
+                    BuildingId = bu.Id
+                };
+
+            if (BuildingId > 0)
+                linesQ = linesQ.Where(x => x.BuildingId == BuildingId);
+            else if (DistrictId > 0)
+                linesQ = linesQ.Where(x => x.DistrictId == DistrictId);
+            else if (CityId > 0)
+                linesQ = linesQ.Where(x => x.CityId == CityId);
+
+            var raw = await linesQ.ToListAsync();
+
+            var lines = raw
+                .Select(x => new ReportLine(x.Period, x.ServiceName, x.Amount))
+                .ToList();
+
+            if (lines.Count == 0)
+            {
+                _error = "Нет данных за выбранный период/фильтр (счета не сформированы).";
+                return;
+            }
+
+            // KPI (в памяти)
+            _total = lines.Sum(x => x.Amount);
+
+            // Агрегации (в памяти)
+            var monthly = lines
+                .GroupBy(x => x.Period)
+                .Select(g => new MonthlyPoint(g.Key, g.Sum(x => x.Amount)))
+                .OrderBy(x => x.Period)
+                .ToList();
+
+            var byService = lines
+                .GroupBy(x => x.ServiceName)
+                .Select(g => new ServicePoint(g.Key, g.Sum(x => x.Amount)))
+                .OrderByDescending(x => x.Total)
+                .ToList();
+
+            await RenderChartsAsync(monthly, byService);
+        }
+        catch (JSException jsex)
+        {
+            _error = "Ошибка графиков (Plotly/JS). Проверь подключение скриптов. Детали: " + jsex.Message;
+        }
+        catch (Exception ex)
+        {
+            _error = "Ошибка построения отчёта: " + ex.Message +
+                     (ex.InnerException != null ? " | " + ex.InnerException.Message : "");
+        }
+    }
+
+    private async Task RenderChartsAsync(List<MonthlyPoint> monthly, List<ServicePoint> byService)
+    {
+        var x1 = monthly.Select(m => m.Period.ToString()).ToArray();
+        var y1 = monthly.Select(m => (double)m.Total).ToArray();
+
+        var dataMonthly = new object[]
+        {
+            new { type = "bar", x = x1, y = y1 }
+        };
+
+        var layoutMonthly = new
+        {
+            margin = new { l = 60, r = 20, t = 20, b = 60 },
+            xaxis = new { title = "Период" },
+            yaxis = new { title = "Сумма" }
+        };
+
+        var labels = byService.Select(s => s.Service).ToArray();
+        var values = byService.Select(s => (double)s.Total).ToArray();
+
+        var dataServices = new object[]
+        {
+            new { type = "pie", labels, values }
+        };
+
+        var layoutServices = new
+        {
+            margin = new { l = 20, r = 20, t = 20, b = 20 }
+        };
+
+        await JS.InvokeVoidAsync("plotlyInterop.render", "chartMonthly", dataMonthly, layoutMonthly);
+        await JS.InvokeVoidAsync("plotlyInterop.render", "chartServices", dataServices, layoutServices);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_db is not null)
+            await _db.DisposeAsync();
+    }
+}

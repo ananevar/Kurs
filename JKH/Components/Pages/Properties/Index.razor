@@ -46,6 +46,8 @@ else
                     </td>
                     <td>@p.Apartment</td>
                     <td class="text-end">
+                        <a class="btn btn-sm btn-outline-primary"href="@($"/bills?propertyId={p.Id}")">Счета</a>
+                        <a class="btn btn-sm btn-outline-primary" href="@($"/meters?propertyId={p.Id}")">Счётчики</a>
                         <a class="btn btn-sm btn-outline-primary" href="@($"/properties/edit/{p.Id}")">Изменить</a>
                         <a class="btn btn-sm btn-outline-danger ms-2" href="@($"/properties/delete/{p.Id}")">Удалить</a>
                     </td>
