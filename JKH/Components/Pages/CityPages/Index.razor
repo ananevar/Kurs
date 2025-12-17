@@ -5,14 +5,16 @@
 @using JKH.Data
 @implements IAsyncDisposable
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
-
 <PageTitle>Города</PageTitle>
 
-<h1>Города</h1>
-
+<h1>Обслуживаемые города</h1>
+<AuthorizeView Roles="Admin, Provider">
+    <Authorized>
 <p>
     <a href="cities/create">Добавить город</a>
 </p>
+</Authorized>
+</AuthorizeView>
 
 <QuickGrid Class="table" Items="_cities">
     <PropertyColumn Title="Город" Property="c => c.Name" />
@@ -20,7 +22,8 @@
     <PropertyColumn Title="Улиц" Property="c => c.Districts.Sum(d => d.Streets.Count)" />
     <PropertyColumn Title="Домов" Property="c => c.Districts.Sum(d => d.Streets.Sum(s => s.Buildings.Count))" />
     <PropertyColumn Title="Квартир" Property="c => c.Districts.Sum(d => d.Streets.Sum(s => s.Buildings.Sum(b => b.Properties.Count)))" />
-
+<AuthorizeView Roles="Admin, Provider">
+    <Authorized>
     <TemplateColumn Context="c" Title="Действия">
         <a href="@($"/districts?cityId={c.Id}")">Районы</a>
         |
@@ -28,6 +31,8 @@
         |
         <a href="@($"cities/delete?id={c.Id}")">Удалить</a>
     </TemplateColumn>
+</Authorized>
+</AuthorizeView>
 </QuickGrid>
 
 @code {

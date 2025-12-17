@@ -1,18 +1,18 @@
 ﻿using JKH.Components;
 using JKH.Components.Account;
 using JKH.Data;
-using Tesseract;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using System.Text.RegularExpressions;
+using Tesseract;
+using ClosedXML.Excel;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
-    
 
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityUserAccessor>();
@@ -20,14 +20,19 @@ builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
 
 builder.Services.AddAuthentication(options =>
-    {
-        options.DefaultScheme = IdentityConstants.ApplicationScheme;
-        options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
-    })
-    .AddIdentityCookies();
+{
+    options.DefaultScheme = IdentityConstants.ApplicationScheme;
+    options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
+})
+.AddIdentityCookies();
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+var connectionString =
+    builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
+
+
+// ✅ Можно оставить фабрику для страниц/репортов, где используешь IDbContextFactory
 builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
     options.UseSqlite(connectionString));
 
@@ -36,15 +41,34 @@ builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 builder.Services.AddHttpClient();
 
-builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.RequireConfirmedAccount = false)
-    .AddEntityFrameworkStores<ApplicationDbContext>()
-    .AddSignInManager()
-    .AddDefaultTokenProviders();
+// ✅ ВАЖНО: добавили роли
+builder.Services.AddIdentityCore<ApplicationUser>(options =>
+{
+    options.SignIn.RequireConfirmedAccount = false;
+})
+.AddRoles<IdentityRole>() // ⭐ нужно для ролей
+.AddEntityFrameworkStores<ApplicationDbContext>()
+.AddSignInManager()
+.AddDefaultTokenProviders();
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 
 var app = builder.Build();
 
+
+// ✅ Seed ролей при старте
+using (var scope = app.Services.CreateScope())
+{
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+
+    string[] roles = { "Admin", "Provider", "Consumer" };
+
+    foreach (var role in roles)
+    {
+        if (!await roleManager.RoleExistsAsync(role))
+            await roleManager.CreateAsync(new IdentityRole(role));
+    }
+}
 
 
 // Configure the HTTP request pipeline.
@@ -55,7 +79,6 @@ if (app.Environment.IsDevelopment())
 else
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
     app.UseMigrationsEndPoint();
 }
@@ -85,7 +108,6 @@ app.MapGet("/user-photo/{id}", async (HttpContext ctx, string id, ApplicationDbC
     return Results.Redirect("/images/user-default.png");
 });
 
-
 app.MapPost("/api/ocr/meter", async (HttpRequest request) =>
 {
     // 1. Проверяем, что пришёл multipart/form-data
@@ -109,7 +131,6 @@ app.MapPost("/api/ocr/meter", async (HttpRequest request) =>
     var bytes = ms.ToArray();
 
     // 5. Инициализируем Tesseract
-    // ВАЖНО: папка tessdata должна быть рядом с exe (bin/Debug/netX.X/)
     using var engine = new TesseractEngine("./tessdata", "eng", EngineMode.Default);
 
     // 6. Ограничиваем символы — только цифры
@@ -135,6 +156,5 @@ app.MapPost("/api/ocr/meter", async (HttpRequest request) =>
         value
     });
 });
-
 
 app.Run();

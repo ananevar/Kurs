@@ -1,0 +1,289 @@
+@page "/importexcel"
+@rendermode InteractiveServer
+@using ClosedXML.Excel
+@using Microsoft.EntityFrameworkCore
+@using System.Globalization
+@using JKH.Data
+@using JKH.Models
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+
+<PageTitle>Импорт из Excel</PageTitle>
+
+<h1>Импорт из Excel</h1>
+
+<p>
+    <label>
+        Укажите файл Excel для импорта:
+        <InputFile OnChange="LoadFiles" />
+    </label>
+</p>
+
+@if (isLoading)
+{
+    <p>Загрузка ...</p>
+}
+else
+{
+    <div class="mt-2">
+        <div>Импортировано ServiceTypes: @importedServiceTypes</div>
+        <div>Импортировано Tariffs: @importedTariffs</div>
+        <div>Обновлено Tariffs: @updatedTariffs</div>
+
+        @if (StartTime != null)
+        {
+            var ts = (EndTime ?? DateTime.Now).Subtract(StartTime ?? DateTime.Now);
+            <div class="text-muted">
+                Время выполнения: @String.Format("{0:00}:{1:000}", ts.Seconds, ts.Milliseconds)
+            </div>
+        }
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(ErrorMessage))
+{
+    <div class="alert alert-danger mt-3">Ошибка: @ErrorMessage</div>
+}
+
+@code {
+    public string ErrorMessage { get; set; } = "";
+
+    DateTime? StartTime;
+    DateTime? EndTime;
+
+    private bool isLoading;
+    private string? errworksheet;
+    private int errindexrow;
+
+    const long MAX_FILESIZE = 20 * 1024 * 1024; // 20 MB
+
+    private int importedServiceTypes;
+    private int importedTariffs;
+    private int updatedTariffs;
+
+    private async Task LoadFiles(InputFileChangeEventArgs e)
+    {
+        isLoading = true;
+        ErrorMessage = "";
+        importedServiceTypes = 0;
+        importedTariffs = 0;
+        updatedTariffs = 0;
+
+        var browserFile = e.File;
+        if (browserFile != null)
+        {
+            try
+            {
+                using var fileStream = browserFile.OpenReadStream(MAX_FILESIZE);
+
+                // как в методичке: сохраняем во временный файл
+                var randomFile = Path.GetTempFileName();
+                var extension = Path.GetExtension(browserFile.Name);
+                var targetFilePath = Path.ChangeExtension(randomFile, extension);
+
+                await using var destinationStream = new FileStream(targetFilePath, FileMode.Create);
+                await fileStream.CopyToAsync(destinationStream);
+                await destinationStream.FlushAsync();
+                destinationStream.Position = 0;
+
+                StartTime = DateTime.Now;
+                await ImportFromExcelAsync(destinationStream);
+                EndTime = DateTime.Now;
+            }
+            catch (Exception ex)
+            {
+                ErrorMessage = ex.Message;
+            }
+        }
+
+        isLoading = false;
+    }
+
+    private async Task ImportFromExcelAsync(FileStream file)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        try
+        {
+            using var workbook = new XLWorkbook(file);
+
+            // 1) ServiceTypes
+            var wsSt = workbook.Worksheets.FirstOrDefault(w => w.Name == "ServiceTypes");
+            if (wsSt != null)
+                importedServiceTypes = await ImportServiceTypesAsync(db, wsSt);
+
+            // 2) Tariffs
+            var wsTar = workbook.Worksheets.FirstOrDefault(w => w.Name == "Tariffs");
+            if (wsTar != null)
+            {
+                var (ins, upd) = await ImportTariffsAsync(db, wsTar);
+                importedTariffs = ins;
+                updatedTariffs = upd;
+            }
+
+            await db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            if (!string.IsNullOrWhiteSpace(errworksheet))
+                ErrorMessage = $"Ошибка в импорте в листе {errworksheet}, строка {errindexrow}. {ex.Message}";
+            else
+                ErrorMessage = ex.Message;
+
+            throw;
+        }
+        finally
+        {
+            errworksheet = null;
+            errindexrow = 0;
+        }
+    }
+
+    // ✅ Парсер DateOnly для yyyy-MM-dd (и fallback если Excel отдаёт DateTime)
+    private static DateOnly ParseDateOnly(string s, string fieldName)
+    {
+        if (DateOnly.TryParseExact(s, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
+            return d;
+
+        if (DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
+            return DateOnly.FromDateTime(dt);
+
+        throw new Exception($"{fieldName} должен быть yyyy-MM-dd");
+    }
+
+    private async Task<int> ImportServiceTypesAsync(ApplicationDbContext db, IXLWorksheet worksheet)
+    {
+        errworksheet = worksheet.Name;
+        errindexrow = 1;
+
+        var inserted = 0;
+
+        var range = worksheet.RangeUsed();
+        if (range is null) return 0;
+        var table = range.AsTable();
+
+        foreach (var row in worksheet.RowsUsed().Skip(1))
+        {
+            errindexrow++;
+
+            var idStr = row.Cell(table.FindColumn(c => c.FirstCell().GetString() == "Id")
+                .RangeAddress.FirstAddress.ColumnNumber).GetString();
+
+            var name = row.Cell(table.FindColumn(c => c.FirstCell().GetString() == "Name")
+                .RangeAddress.FirstAddress.ColumnNumber).GetString();
+
+            var unit = row.Cell(table.FindColumn(c => c.FirstCell().GetString() == "Unit")
+                .RangeAddress.FirstAddress.ColumnNumber).GetString();
+
+            if (string.IsNullOrWhiteSpace(name))
+                continue;
+
+            int.TryParse(idStr, out var id);
+
+            // без удаления имеющихся: если Id уже есть — пропускаем
+            if (id > 0)
+            {
+                var existsById = await db.ServiceTypes.AnyAsync(x => x.Id == id);
+                if (existsById) continue;
+
+                db.ServiceTypes.Add(new ServiceType
+                {
+                    Id = id,
+                    Name = name,
+                    Unit = unit
+                });
+                inserted++;
+            }
+            else
+            {
+                // если Id=0 — создадим новый
+                db.ServiceTypes.Add(new ServiceType
+                {
+                    Name = name,
+                    Unit = unit
+                });
+                inserted++;
+            }
+        }
+
+        return inserted;
+    }
+
+    private async Task<(int inserted, int updated)> ImportTariffsAsync(ApplicationDbContext db, IXLWorksheet worksheet)
+    {
+        errworksheet = worksheet.Name;
+        errindexrow = 1;
+
+        int inserted = 0, updated = 0;
+
+        var range = worksheet.RangeUsed();
+        if (range is null) return (0, 0);
+        var table = range.AsTable();
+
+        foreach (var row in worksheet.RowsUsed().Skip(1))
+        {
+            errindexrow++;
+
+            var serviceTypeIdStr = row.Cell(
+                table.FindColumn(c => c.FirstCell().GetString() == "ServiceTypeId")
+                    .RangeAddress.FirstAddress.ColumnNumber
+            ).GetString();
+
+            var priceStr = row.Cell(
+                table.FindColumn(c => c.FirstCell().GetString() == "PricePerUnit")
+                    .RangeAddress.FirstAddress.ColumnNumber
+            ).GetString();
+
+            var validFromStr = row.Cell(
+                table.FindColumn(c => c.FirstCell().GetString() == "ValidFrom")
+                    .RangeAddress.FirstAddress.ColumnNumber
+            ).GetString();
+
+            var validToStr = row.Cell(
+                table.FindColumn(c => c.FirstCell().GetString() == "ValidTo")
+                    .RangeAddress.FirstAddress.ColumnNumber
+            ).GetString();
+
+            var serviceTypeId = int.Parse(serviceTypeIdStr);
+
+            // decimal (Excel часто отдаёт с запятой)
+            if (!decimal.TryParse(priceStr, NumberStyles.Any, CultureInfo.InvariantCulture, out var price))
+                price = decimal.Parse(priceStr.Replace(',', '.'), CultureInfo.InvariantCulture);
+
+            // ✅ DateOnly
+            var validFrom = ParseDateOnly(validFromStr, "ValidFrom");
+
+            DateOnly? validTo = null;
+            if (!string.IsNullOrWhiteSpace(validToStr))
+                validTo = ParseDateOnly(validToStr, "ValidTo");
+
+            // проверим что ServiceType существует
+            var stExists = await db.ServiceTypes.AnyAsync(x => x.Id == serviceTypeId);
+            if (!stExists)
+                throw new Exception($"ServiceTypeId={serviceTypeId} не найден в БД");
+
+            // ✅ Upsert по (ServiceTypeId + ValidFrom) (DateOnly)
+            var existing = await db.Tariffs.FirstOrDefaultAsync(t =>
+                t.ServiceTypeId == serviceTypeId && t.ValidFrom == validFrom);
+
+            if (existing is null)
+            {
+                db.Tariffs.Add(new Tariff
+                {
+                    ServiceTypeId = serviceTypeId,
+                    PricePerUnit = price,
+                    ValidFrom = validFrom,
+                    ValidTo = validTo
+                });
+                inserted++;
+            }
+            else
+            {
+                existing.PricePerUnit = price;
+                existing.ValidTo = validTo;
+                updated++;
+            }
+        }
+
+        return (inserted, updated);
+    }
+}

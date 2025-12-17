@@ -9,22 +9,27 @@
 <PageTitle>Услуги</PageTitle>
 
 <h1>Услуги</h1>
-
+<AuthorizeView Roles="Admin, Provider">
+<Authorized>
 <p>
     <a href="/servicetypes/create">Добавить услугу</a>
 </p>
-
+</Authorized>
+</AuthorizeView>
 <QuickGrid Class="table" Items="_items">
     <PropertyColumn Title="Название" Property="s => s.Name" />
     <PropertyColumn Title="Ед. изм." Property="s => s.Unit" />
     <PropertyColumn Title="Счётчиков" Property="s => s.Meters.Count" />
     <PropertyColumn Title="Тарифов" Property="s => s.Tariffs.Count" />
-
+<AuthorizeView Roles="Admin, Provider">
+<Authorized>
     <TemplateColumn Context="s" Title="Действия">
         <a href="@($"/servicetypes/edit?id={s.Id}")">Edit</a>
         |
         <a href="@($"/servicetypes/delete?id={s.Id}")">Delete</a>
     </TemplateColumn>
+    </Authorized>
+</AuthorizeView>
 </QuickGrid>
 
 @code {

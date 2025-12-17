@@ -296,8 +296,16 @@ build_metadata.AdditionalFiles.CssScope =
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xFcnJvci5yYXpvcg==
 build_metadata.AdditionalFiles.CssScope = 
 
+[c:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/ExportExcel.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xFeHBvcnRFeGNlbC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
 [c:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/Home.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xIb21lLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[c:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/ImportExcel.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xJbXBvcnRFeGNlbC5yYXpvcg==
 build_metadata.AdditionalFiles.CssScope = 
 
 [c:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Pages/MeterPages/Create.razor]

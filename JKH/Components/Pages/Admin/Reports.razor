@@ -5,6 +5,8 @@
 @using Microsoft.AspNetCore.Authorization
 @using JKH.Data
 @using JKH.Models
+@attribute [Authorize(Roles = "Admin,Provider")]
+
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject IJSRuntime JS
 @implements IAsyncDisposable

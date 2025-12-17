@@ -299,3 +299,11 @@ c:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\J
 c:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\bin\Debug\net8.0\tessdata\eng.traineddata
 c:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\bin\Debug\net8.0\Tesseract.dll
 c:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\bin\Debug\net8.0\tessdata\meter.traineddata
+c:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\bin\Debug\net8.0\ClosedXML.dll
+c:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\bin\Debug\net8.0\ClosedXML.Parser.dll
+c:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\bin\Debug\net8.0\DocumentFormat.OpenXml.dll
+c:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\bin\Debug\net8.0\DocumentFormat.OpenXml.Framework.dll
+c:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\bin\Debug\net8.0\ExcelNumberFormat.dll
+c:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\bin\Debug\net8.0\RBush.dll
+c:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\bin\Debug\net8.0\SixLabors.Fonts.dll
+c:\Users\kalhu\OneDrive\Рабочий стол\Университет\WEB\JKH\JKH\bin\Debug\net8.0\System.IO.Packaging.dll

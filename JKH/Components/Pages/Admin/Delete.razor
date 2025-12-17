@@ -1,0 +1,118 @@
+@page "/admin/users/delete/{Id}"
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using JKH.Data
+
+@inject UserManager<ApplicationUser> UserManager
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager Nav
+
+<PageTitle>Удаление пользователя</PageTitle>
+
+<h1 class="text-danger">Удалить пользователя</h1>
+
+@if (loading)
+{
+    <p>Загрузка...</p>
+}
+else if (user == null)
+{
+    <div class="alert alert-danger">
+        Пользователь не найден.
+    </div>
+    <a class="btn btn-secondary" href="/admin/users">Назад</a>
+}
+else
+{
+    <div class="alert alert-warning">
+        <strong>Внимание!</strong> Это действие невозможно отменить.
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="d-flex align-items-center mb-3">
+                <img src="/user-photo/@user.Id"
+                     style="width:60px;height:60px;border-radius:50%;object-fit:cover"
+                     class="me-3" />
+                <div>
+                    <div><strong>Email:</strong> @user.Email</div>
+                    <div><strong>UserName:</strong> @user.UserName</div>
+                    <div><strong>Телефон:</strong> @user.PhoneNumber</div>
+                    <div><strong>Email подтверждён:</strong> @user.EmailConfirmed</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <button class="btn btn-danger" @onclick="DeleteUser" disabled="@deleting">
+            @(deleting ? "Удаление..." : "Да, удалить")
+        </button>
+        <a class="btn btn-secondary" href="/admin/users">Отмена</a>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(error))
+    {
+        <div class="alert alert-danger mt-3">@error</div>
+    }
+}
+
+@code {
+    [Parameter] public string? Id { get; set; }
+
+    private ApplicationUser? user;
+    private bool loading = true;
+    private bool deleting = false;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Id))
+        {
+            loading = false;
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        user = await db.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == Id);
+
+        loading = false;
+    }
+
+    private async Task DeleteUser()
+    {
+        if (user == null || deleting)
+            return;
+
+        deleting = true;
+        error = null;
+
+        try
+        {
+            var identityUser = await UserManager.FindByIdAsync(user.Id);
+            if (identityUser == null)
+            {
+                error = "Пользователь не найден.";
+                return;
+            }
+
+            var result = await UserManager.DeleteAsync(identityUser);
+            if (!result.Succeeded)
+            {
+                error = string.Join("; ", result.Errors.Select(e => e.Description));
+                return;
+            }
+
+            // успех — назад к списку
+            Nav.NavigateTo("/admin/users", true);
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            deleting = false;
+        }
+    }
+}

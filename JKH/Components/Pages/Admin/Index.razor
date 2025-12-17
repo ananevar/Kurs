@@ -2,8 +2,11 @@
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
 @using JKH.Data
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin,Provider")]
 @inject IDbContextFactory<ApplicationDbContext> DbFactory
 @inject UserManager<ApplicationUser> UserManager
+@inject RoleManager<IdentityRole> RoleManager
 
 <PageTitle>Пользователи</PageTitle>
 
@@ -34,7 +37,8 @@ else
                 <th>UserName</th>
                 <th>Телефон</th>
                 <th>Email подтверждён</th>
-                <th style="width:260px;"></th>
+                <th style="width:220px;">Роль</th>
+                <th style="width:420px;"></th>
             </tr>
             </thead>
             <tbody>
@@ -42,19 +46,47 @@ else
             {
                 <tr>
                     <td>
-    <img src="/user-photo/@u.Id"
-         style="width:40px;height:40px;border-radius:50%;object-fit:cover" />
-</td>
+                        <img src="/user-photo/@u.Id"
+                             style="width:40px;height:40px;border-radius:50%;object-fit:cover" />
+                    </td>
+
                     <td>@u.Email</td>
                     <td>@u.UserName</td>
                     <td>@u.PhoneNumber</td>
                     <td>@u.EmailConfirmed</td>
+<AuthorizeView Roles="Admin">
+    <Authorized>
+                    <td>
+                        <select class="form-select form-select-sm"
+                                value="@GetSelectedRole(u.Id)"
+                                @onchange="(e) => OnRoleChanged(u.Id, e.Value?.ToString())">
+                            @foreach (var r in roles)
+                            {
+                                <option value="@r">@r</option>
+                            }
+                        </select>
+
+                        @if (TryGetMessage(u.Id, out var msg) && !string.IsNullOrWhiteSpace(msg))
+                        {
+                            <div class="text-muted small mt-1">@msg</div>
+                        }
+                    </td>
+
                     <td class="text-end">
-                        <a class="btn btn-sm btn-outline-primary" href="/admin/users/details/@u.Id">Просмотр</a>
-                        <a class="btn btn-sm btn-outline-warning" href="/admin/users/edit/@u.Id">Изменить</a>
+                        <button class="btn btn-sm btn-primary me-2"
+                                disabled="@IsSaving(u.Id)"
+                                @onclick="() => SaveRoleAsync(u.Id)">
+                            @(IsSaving(u.Id) ? "..." : "Сохранить роль")
+                        </button>
+
+                        <a class="btn btn-sm btn-outline-primary me-1" href="/admin/users/details/@u.Id">Просмотр</a>
+                        <a class="btn btn-sm btn-outline-warning me-1" href="/admin/users/edit/@u.Id">Изменить</a>
                         <a class="btn btn-sm btn-outline-danger" href="/admin/users/delete/@u.Id">Удалить</a>
                     </td>
+                    </Authorized>
+</AuthorizeView>
                 </tr>
+                
             }
             </tbody>
         </table>
@@ -68,11 +100,33 @@ else
     private string q = "";
     private List<ApplicationUser> users = new();
 
+    // роли
+    private List<string> roles = new();
+
+    // выбранная роль на пользователя
+    private readonly Dictionary<string, string> selectedRoleByUserId = new();
+
+    // состояния UI
+    private readonly Dictionary<string, bool> savingByUserId = new();
+    private readonly Dictionary<string, string> messageByUserId = new();
+
     protected override async Task OnInitializedAsync() => await Load();
 
     private async Task Load()
     {
         loading = true;
+
+        // 1) роли из БД
+        roles = RoleManager.Roles
+            .Select(r => r.Name!)
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .OrderBy(x => x)
+            .ToList();
+
+        if (roles.Count == 0)
+            roles = new() { "Admin", "Provider", "Consumer" };
+
+        // 2) пользователи
         await using var db = await DbFactory.CreateDbContextAsync();
 
         var query = db.Users.AsNoTracking();
@@ -90,6 +144,114 @@ else
             .Take(500) // защита от огромного списка
             .ToListAsync();
 
+        // 3) подтянуть текущие роли пользователям (1 роль на пользователя)
+        selectedRoleByUserId.Clear();
+        savingByUserId.Clear();
+        messageByUserId.Clear();
+
+        foreach (var u in users)
+        {
+            var userRoles = await UserManager.GetRolesAsync(u);
+            var current = userRoles.FirstOrDefault();
+
+            var selected = !string.IsNullOrWhiteSpace(current) && roles.Contains(current)
+                ? current
+                : (roles.Contains("Consumer") ? "Consumer" : roles[0]);
+
+            selectedRoleByUserId[u.Id] = selected;
+            savingByUserId[u.Id] = false;
+            messageByUserId[u.Id] = "";
+        }
+
         loading = false;
+    }
+
+    private string GetSelectedRole(string userId)
+        => selectedRoleByUserId.TryGetValue(userId, out var r)
+            ? r
+            : (roles.Contains("Consumer") ? "Consumer" : (roles.FirstOrDefault() ?? "Consumer"));
+
+    private void OnRoleChanged(string userId, string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role)) return;
+        selectedRoleByUserId[userId] = role;
+        messageByUserId[userId] = "";
+    }
+
+    private bool IsSaving(string userId)
+        => savingByUserId.TryGetValue(userId, out var v) && v;
+
+    private bool TryGetMessage(string userId, out string msg)
+        => messageByUserId.TryGetValue(userId, out msg!);
+
+    // ✅ Сколько админов в системе
+    private async Task<int> CountAdminsAsync()
+    {
+        var admins = await UserManager.GetUsersInRoleAsync("Admin");
+        return admins.Count;
+    }
+
+    private async Task SaveRoleAsync(string userId)
+    {
+        savingByUserId[userId] = true;
+        messageByUserId[userId] = "";
+
+        try
+        {
+            var user = await UserManager.FindByIdAsync(userId);
+            if (user is null)
+            {
+                messageByUserId[userId] = "Пользователь не найден.";
+                return;
+            }
+
+            var newRole = GetSelectedRole(userId);
+
+            // Текущие роли пользователя
+            var oldRoles = await UserManager.GetRolesAsync(user);
+            var isAdminNow = oldRoles.Contains("Admin");
+
+            // ✅ ЗАЩИТА: нельзя снять роль Admin у последнего администратора
+            if (isAdminNow && newRole != "Admin")
+            {
+                var adminCount = await CountAdminsAsync();
+                if (adminCount <= 1)
+                {
+                    // откатить селект обратно на Admin
+                    selectedRoleByUserId[userId] = "Admin";
+                    messageByUserId[userId] = "Нельзя снять роль Admin у последнего администратора.";
+                    return;
+                }
+            }
+
+            // 1) снять старые роли
+            if (oldRoles.Count > 0)
+            {
+                var rem = await UserManager.RemoveFromRolesAsync(user, oldRoles);
+                if (!rem.Succeeded)
+                {
+                    messageByUserId[userId] = string.Join("; ", rem.Errors.Select(e => e.Description));
+                    return;
+                }
+            }
+
+            // 2) назначить новую
+            var add = await UserManager.AddToRoleAsync(user, newRole);
+            if (!add.Succeeded)
+            {
+                messageByUserId[userId] = string.Join("; ", add.Errors.Select(e => e.Description));
+                return;
+            }
+
+            messageByUserId[userId] = $"Ок: {newRole}";
+        }
+        catch (Exception ex)
+        {
+            messageByUserId[userId] = "Ошибка: " + ex.Message;
+        }
+        finally
+        {
+            savingByUserId[userId] = false;
+        }
     }
 }

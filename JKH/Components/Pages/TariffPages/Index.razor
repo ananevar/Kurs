@@ -10,9 +10,24 @@
 
 <h1>Тарифы</h1>
 
-<p>
-    <a href="@CreateUrl">Добавить тариф</a>
-</p>
+<div class="d-flex flex-wrap gap-2 mb-3">
+    <a class="btn btn-outline-success" href="/exportexcel">
+        Экспорт в Excel
+    </a>
+    <AuthorizeView Roles="Admin, Provider">
+<Authorized>
+    <a class="btn btn-outline-primary" href="/importexcel">
+        Импорт из Excel
+    </a>
+    
+
+
+    <a class="btn btn-primary ms-auto" href="@CreateUrl">
+        Добавить тариф
+    </a>
+    </Authorized>
+</AuthorizeView>
+</div>
 
 @if (_serviceTypes.Count > 0)
 {
@@ -33,12 +48,15 @@
     <PropertyColumn Title="Цена за ед." Property="t => t.PricePerUnit" />
     <PropertyColumn Title="Действует с" Property="t => t.ValidFrom" />
     <PropertyColumn Title="Действует по" Property="t => t.ValidTo" />
-
+<AuthorizeView Roles="Admin, Provider">
+<Authorized>
     <TemplateColumn Context="t" Title="Действия">
         <a href="@($"/tariffs/edit?id={t.Id}")">Edit</a>
         |
         <a href="@($"/tariffs/delete?id={t.Id}")">Delete</a>
     </TemplateColumn>
+</Authorized>
+</AuthorizeView>
 </QuickGrid>
 
 @code {
