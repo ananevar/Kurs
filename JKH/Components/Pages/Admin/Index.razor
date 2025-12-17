@@ -29,6 +29,7 @@ else
         <table class="table table-striped align-middle">
             <thead>
             <tr>
+                <th>Фото</th>
                 <th>Email</th>
                 <th>UserName</th>
                 <th>Телефон</th>
@@ -40,6 +41,10 @@ else
             @foreach (var u in users)
             {
                 <tr>
+                    <td>
+    <img src="/user-photo/@u.Id"
+         style="width:40px;height:40px;border-radius:50%;object-fit:cover" />
+</td>
                     <td>@u.Email</td>
                     <td>@u.UserName</td>
                     <td>@u.PhoneNumber</td>

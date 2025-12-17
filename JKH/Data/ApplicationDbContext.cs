@@ -18,6 +18,8 @@ namespace JKH.Data
         public DbSet<Street> Streets => Set<Street>();
         public DbSet<Building> Buildings => Set<Building>();
 
+        public DbSet<UserPhoto> UserPhotos => Set<UserPhoto>();
+
         // User properties (apartments)
         public DbSet<Property> Properties => Set<Property>();
 
@@ -166,6 +168,12 @@ namespace JKH.Data
                 .WithMany(x => x.BillLines)
                 .HasForeignKey(x => x.MeterId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<UserPhoto>()
+                .HasOne<ApplicationUser>()
+                .WithOne()
+                .HasForeignKey<UserPhoto>(p => p.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

@@ -3,6 +3,7 @@ using System;
 using JKH.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace JKH.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251217094856_AddUserPhoto")]
+    partial class AddUserPhoto
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.22");
@@ -58,6 +61,15 @@ namespace JKH.Migrations
 
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("INTEGER");
+
+                    b.Property<byte[]>("Photo")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("PhotoContentType")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("PhotoUpdatedAt")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("TEXT");
@@ -375,28 +387,6 @@ namespace JKH.Migrations
                     b.ToTable("Tariffs");
                 });
 
-            modelBuilder.Entity("JKH.Models.UserPhoto", b =>
-                {
-                    b.Property<string>("UserId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<byte[]>("Data")
-                        .IsRequired()
-                        .HasColumnType("BLOB");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("UserId");
-
-                    b.ToTable("UserPhotos");
-                });
-
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
                     b.Property<string>("Id")
@@ -638,15 +628,6 @@ namespace JKH.Migrations
                         .IsRequired();
 
                     b.Navigation("ServiceType");
-                });
-
-            modelBuilder.Entity("JKH.Models.UserPhoto", b =>
-                {
-                    b.HasOne("JKH.Data.ApplicationUser", null)
-                        .WithOne()
-                        .HasForeignKey("JKH.Models.UserPhoto", "UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

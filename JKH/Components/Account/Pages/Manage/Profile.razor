@@ -1,0 +1,262 @@
+@page "/Account/Manage/Profile"
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using JKH.Data
+@using JKH.Models
+@rendermode InteractiveServer
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+
+<PageTitle>Профиль</PageTitle>
+
+<h1>Профиль</h1>
+
+@if (_loading)
+{
+    <p>Загрузка...</p>
+}
+else if (_user is null)
+{
+    <div class="alert alert-danger">
+        Пользователь не найден (или вы не авторизованы).
+    </div>
+}
+else
+{
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5 class="card-title mb-3">Фото профиля</h5>
+
+                    <img class="rounded-circle mb-3"
+                         style="width:160px;height:160px;object-fit:cover;border:1px solid #ddd;"
+                         src="@PhotoUrl"
+                         alt="Фото профиля" />
+
+                    <div class="mb-2">
+                        <InputFile OnChange="OnPhotoSelected" accept="image/*" />
+                    </div>
+
+                    <div class="d-flex gap-2 justify-content-center mt-3">
+                        <button class="btn btn-primary"
+                                disabled="@(!_hasNewPhoto || _saving)"
+                                @onclick="SavePhoto">
+                            @(_saving ? "Сохранение..." : "Сохранить фото")
+                        </button>
+
+                        <button class="btn btn-outline-danger"
+                                disabled="@(_saving)"
+                                @onclick="RemovePhoto">
+                            Удалить
+                        </button>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(_error))
+                    {
+                        <div class="alert alert-danger mt-3">@_error</div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(_ok))
+                    {
+                        <div class="alert alert-success mt-3">@_ok</div>
+                    }
+
+                    <div class="text-muted mt-3">
+                        Последнее обновление фото:
+                        @(_photoUpdatedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "—")
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Данные аккаунта</h5>
+                    <div class="mb-2"><b>Email:</b> @_user.Email</div>
+                    <div class="mb-2"><b>Телефон:</b> @_user.PhoneNumber</div>
+                    <div class="mb-2"><b>Id:</b> @_user.Id</div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private ApplicationUser? _user;
+    private bool _loading = true;
+    private bool _saving = false;
+
+    private string? _error;
+    private string? _ok;
+
+    private byte[]? _newPhotoBytes;
+    private string? _newPhotoContentType;
+    private bool _hasNewPhoto;
+
+    private DateTime? _photoUpdatedAt;
+    private long _photoVer = DateTime.UtcNow.Ticks;
+
+    private string PhotoUrl =>
+        _user is null
+            ? "/images/user-default.png"
+            : $"/user-photo/{_user.Id}?v={_photoVer}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var principal = authState.User;
+
+            if (principal?.Identity?.IsAuthenticated != true)
+                return;
+
+            _user = await UserManager.GetUserAsync(principal);
+            if (_user != null)
+                await LoadPhotoMeta();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadPhotoMeta()
+    {
+        using var db = DbFactory.CreateDbContext();
+        var photo = await db.UserPhotos.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.UserId == _user!.Id);
+
+        _photoUpdatedAt = photo?.UpdatedAt;
+        _photoVer = photo?.UpdatedAt.Ticks ?? DateTime.UtcNow.Ticks;
+    }
+
+    private async Task OnPhotoSelected(InputFileChangeEventArgs e)
+    {
+        _error = null;
+        _ok = null;
+
+        const long maxSize = 5 * 1024 * 1024;
+
+        if (e.File is null || e.File.Size == 0)
+        {
+            _error = "Файл пустой.";
+            return;
+        }
+
+        if (e.File.Size > maxSize)
+        {
+            _error = "Файл слишком большой (макс. 5 МБ).";
+            return;
+        }
+
+        var ct = e.File.ContentType;
+        if (string.IsNullOrWhiteSpace(ct) || !ct.StartsWith("image/"))
+            ct = "image/jpeg";
+
+        await using var stream = e.File.OpenReadStream(maxSize);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+
+        _newPhotoBytes = ms.ToArray();
+        _newPhotoContentType = ct;
+        _hasNewPhoto = _newPhotoBytes.Length > 0;
+    }
+
+    // 🔥 ГЛАВНЫЙ МЕТОД С ДИАГНОСТИКОЙ
+    private async Task SavePhoto()
+    {
+        _error = null;
+        _ok = null;
+
+        if (_user is null || !_hasNewPhoto || _newPhotoBytes is null)
+        {
+            _error = "Нет фото для сохранения.";
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            using var db = DbFactory.CreateDbContext();
+
+            var entity = await db.UserPhotos
+                .FirstOrDefaultAsync(x => x.UserId == _user.Id);
+
+            if (entity is null)
+            {
+                entity = new UserPhoto { UserId = _user.Id };
+                db.UserPhotos.Add(entity);
+            }
+
+            entity.Data = _newPhotoBytes;
+            entity.ContentType = _newPhotoContentType ?? "image/jpeg";
+            entity.UpdatedAt = DateTime.UtcNow;
+
+            await db.SaveChangesAsync();
+
+            // 🔎 100% проверка
+            var check = await db.UserPhotos.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.UserId == _user.Id);
+
+            if (check is null)
+            {
+                _error = "❌ После SaveChanges запись НЕ найдена в БД";
+                return;
+            }
+
+            _ok = $"✅ Сохранено в БД: bytes={check.Data.Length}, ct={check.ContentType}";
+
+            _photoUpdatedAt = check.UpdatedAt;
+            _photoVer = check.UpdatedAt.Ticks;
+
+            _newPhotoBytes = null;
+            _hasNewPhoto = false;
+        }
+        catch (Exception ex)
+        {
+            _error = "❌ EXCEPTION: " + ex.ToString();
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task RemovePhoto()
+    {
+        _error = null;
+        _ok = null;
+
+        if (_user is null) return;
+
+        _saving = true;
+        try
+        {
+            using var db = DbFactory.CreateDbContext();
+            var entity = await db.UserPhotos.FirstOrDefaultAsync(x => x.UserId == _user.Id);
+
+            if (entity != null)
+            {
+                db.UserPhotos.Remove(entity);
+                await db.SaveChangesAsync();
+            }
+
+            _ok = "Фото удалено.";
+            _photoUpdatedAt = null;
+            _photoVer = DateTime.UtcNow.Ticks;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

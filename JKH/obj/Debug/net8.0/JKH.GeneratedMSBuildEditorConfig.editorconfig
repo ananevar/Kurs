@@ -112,6 +112,10 @@ build_metadata.AdditionalFiles.CssScope =
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xBY2NvdW50XFBhZ2VzXE1hbmFnZVxQZXJzb25hbERhdGEucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 
 
+[c:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Account/Pages/Manage/Profile.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xBY2NvdW50XFBhZ2VzXE1hbmFnZVxQcm9maWxlLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
 [c:/Users/kalhu/OneDrive/Рабочий стол/Университет/WEB/JKH/JKH/Components/Account/Pages/Manage/ResetAuthenticator.razor]
 build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xBY2NvdW50XFBhZ2VzXE1hbmFnZVxSZXNldEF1dGhlbnRpY2F0b3IucmF6b3I=
 build_metadata.AdditionalFiles.CssScope = 

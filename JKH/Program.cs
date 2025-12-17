@@ -27,6 +27,7 @@ builder.Services.AddAuthentication(options =>
     .AddIdentityCookies();
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
 builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
     options.UseSqlite(connectionString));
 
@@ -43,6 +44,8 @@ builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.Requ
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 
 var app = builder.Build();
+
+
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -67,6 +70,20 @@ app.MapRazorComponents<App>()
 
 // Add additional endpoints required by the Identity /Account Razor components.
 app.MapAdditionalIdentityEndpoints();
+
+app.MapGet("/user-photo/{id}", async (HttpContext ctx, string id, ApplicationDbContext db) =>
+{
+    ctx.Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0";
+    ctx.Response.Headers["Pragma"] = "no-cache";
+    ctx.Response.Headers["Expires"] = "0";
+
+    var photo = await db.UserPhotos.FindAsync(id);
+
+    if (photo is not null && photo.Data.Length > 0)
+        return Results.File(photo.Data, photo.ContentType);
+
+    return Results.Redirect("/images/user-default.png");
+});
 
 
 app.MapPost("/api/ocr/meter", async (HttpRequest request) =>
