@@ -1,0 +1,90 @@
+@page "/admin/users"
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using JKH.Data
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject UserManager<ApplicationUser> UserManager
+
+<PageTitle>Пользователи</PageTitle>
+
+<h1>Пользователи</h1>
+
+<div class="row g-2 mb-3">
+    <div class="col-md-6">
+        <input class="form-control" placeholder="Поиск (email / username)"
+               @bind="q" @bind:event="oninput" />
+    </div>
+    <div class="col-md-3">
+        <button class="btn btn-outline-secondary w-100" @onclick="Load">Обновить</button>
+    </div>
+</div>
+
+@if (loading)
+{
+    <p>Загрузка...</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+            <tr>
+                <th>Email</th>
+                <th>UserName</th>
+                <th>Телефон</th>
+                <th>Email подтверждён</th>
+                <th style="width:260px;"></th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var u in users)
+            {
+                <tr>
+                    <td>@u.Email</td>
+                    <td>@u.UserName</td>
+                    <td>@u.PhoneNumber</td>
+                    <td>@u.EmailConfirmed</td>
+                    <td class="text-end">
+                        <a class="btn btn-sm btn-outline-primary" href="/admin/users/details/@u.Id">Просмотр</a>
+                        <a class="btn btn-sm btn-outline-warning" href="/admin/users/edit/@u.Id">Изменить</a>
+                        <a class="btn btn-sm btn-outline-danger" href="/admin/users/delete/@u.Id">Удалить</a>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <p class="text-muted">Всего: @users.Count</p>
+}
+
+@code {
+    private bool loading = true;
+    private string q = "";
+    private List<ApplicationUser> users = new();
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        loading = true;
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var query = db.Users.AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var s = q.Trim().ToLower();
+            query = query.Where(x =>
+                (x.Email != null && x.Email.ToLower().Contains(s)) ||
+                (x.UserName != null && x.UserName.ToLower().Contains(s)));
+        }
+
+        users = await query
+            .OrderBy(x => x.Email)
+            .Take(500) // защита от огромного списка
+            .ToListAsync();
+
+        loading = false;
+    }
+}

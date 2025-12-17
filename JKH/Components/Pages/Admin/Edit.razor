@@ -1,0 +1,110 @@
+@page "/admin/users/edit/{Id}"
+@using Microsoft.AspNetCore.Identity
+@using System.ComponentModel.DataAnnotations
+@using JKH.Data
+@inject UserManager<ApplicationUser> UserManager
+
+<PageTitle>Редактирование пользователя</PageTitle>
+
+<h1>Редактирование</h1>
+
+@if (user is null)
+{
+    <p>Не найден.</p>
+}
+else
+{
+    <EditForm Model="model" OnValidSubmit="Save">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label class="form-label">Email</label>
+            <InputText class="form-control" @bind-Value="model.Email" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">UserName</label>
+            <InputText class="form-control" @bind-Value="model.UserName" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Телефон</label>
+            <InputText class="form-control" @bind-Value="model.PhoneNumber" />
+        </div>
+
+        <div class="form-check mb-3">
+            <InputCheckbox class="form-check-input" @bind-Value="model.EmailConfirmed" />
+            <label class="form-check-label">Email подтверждён</label>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary" type="submit" disabled="@saving">Сохранить</button>
+            <a class="btn btn-outline-secondary" href="/admin/users">Отмена</a>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(error))
+        {
+            <div class="alert alert-danger mt-3">@error</div>
+        }
+        @if (!string.IsNullOrWhiteSpace(ok))
+        {
+            <div class="alert alert-success mt-3">@ok</div>
+        }
+    </EditForm>
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+
+    private ApplicationUser? user;
+    private bool saving;
+    private string? error;
+    private string? ok;
+
+    private EditUserModel model = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        user = await UserManager.FindByIdAsync(Id);
+        if (user is null) return;
+
+        model = new EditUserModel
+        {
+            Email = user.Email,
+            UserName = user.UserName,
+            PhoneNumber = user.PhoneNumber,
+            EmailConfirmed = user.EmailConfirmed
+        };
+    }
+
+    private async Task Save()
+    {
+        if (user is null) return;
+
+        saving = true;
+        error = null;
+        ok = null;
+
+        user.Email = model.Email;
+        user.UserName = model.UserName;
+        user.PhoneNumber = model.PhoneNumber;
+        user.EmailConfirmed = model.EmailConfirmed;
+
+        var res = await UserManager.UpdateAsync(user);
+        saving = false;
+
+        if (!res.Succeeded)
+            error = string.Join("; ", res.Errors.Select(e => e.Description));
+        else
+            ok = "Сохранено.";
+    }
+
+    private class EditUserModel
+    {
+        [EmailAddress] public string? Email { get; set; }
+        [MaxLength(256)] public string? UserName { get; set; }
+        [MaxLength(50)] public string? PhoneNumber { get; set; }
+        public bool EmailConfirmed { get; set; }
+    }
+}

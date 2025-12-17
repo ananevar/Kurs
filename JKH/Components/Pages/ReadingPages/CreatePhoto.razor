@@ -1,0 +1,261 @@
+@page "/readings/create-photo"
+@using System.ComponentModel.DataAnnotations
+@using System.Globalization
+@using System.Net.Http.Headers
+@using Microsoft.EntityFrameworkCore
+@using JKH.Data
+@using JKH.Models
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager Nav
+
+<PageTitle>Добавить показания по фото</PageTitle>
+
+<h1>Добавить показания по фото</h1>
+
+@if (_loading)
+{
+    <p><em>Загрузка...</em></p>
+}
+else
+{
+    <EditForm Model="_model" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="text-danger" />
+
+        <div class="mb-2 text-muted">
+            Счётчик: <b>#@MeterId</b>
+            @if (!string.IsNullOrWhiteSpace(_meterInfo))
+            {
+                <span> — @_meterInfo</span>
+            }
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Месяц (любой день месяца)</label>
+            <InputDate class="form-control" @bind-Value="_model.Month" />
+            <div class="form-text">Показание будет сохранено на 1-е число выбранного месяца.</div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Фото счётчика</label>
+            <InputFile OnChange="OnFileChanged" accept="image/*" />
+            @if (!string.IsNullOrWhiteSpace(_fileName))
+            {
+                <div class="form-text">Файл: @_fileName (@_fileSizeKb KB)</div>
+            }
+        </div>
+
+        <div class="d-flex gap-2 mb-3">
+            <button type="button" class="btn btn-primary"
+                    @onclick="RecognizeAsync"
+                    disabled="@(_busy || _file is null)">
+                Распознать
+            </button>
+
+            <button type="submit" class="btn btn-success"
+                    disabled="@(_busy || string.IsNullOrWhiteSpace(_model.Value))">
+                Сохранить
+            </button>
+
+            <a class="btn btn-link" href="@BackUrl">Отмена</a>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger">@_error</div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_rawText))
+        {
+            <div class="alert alert-secondary">
+                <b>OCR текст:</b> @_rawText
+            </div>
+        }
+
+        <div class="mb-3">
+            <label class="form-label">Значение (можно поправить вручную)</label>
+            <InputText class="form-control" @bind-Value="_model.Value" />
+        </div>
+    </EditForm>
+}
+
+@code {
+    [SupplyParameterFromQuery] public int? meterId { get; set; }
+
+    private bool _loading = true;
+    private bool _busy = false;
+
+    private string? _error;
+    private string? _rawText;
+    private string? _meterInfo;
+
+    private IBrowserFile? _file;
+    private string? _fileName;
+    private long _fileSizeKb;
+
+    private int MeterId => meterId ?? 0;
+
+    private string BackUrl => MeterId > 0 ? $"/meters/details?id={MeterId}" : "/meters";
+
+    private Vm _model = new();
+
+    private sealed class Vm
+    {
+        [Required(ErrorMessage = "Укажи месяц.")]
+        public DateTime Month { get; set; } = DateTime.Today;
+
+        [Required(ErrorMessage = "Значение не распознано. Нажми 'Распознать' или введи вручную.")]
+        public string Value { get; set; } = "";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (MeterId <= 0)
+        {
+            _error = "Не передан meterId (пример: /meterreadings/create-photo?meterId=1).";
+            _loading = false;
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var meter = await db.Meters.AsNoTracking()
+            .Include(m => m.ServiceType)
+            .FirstOrDefaultAsync(m => m.Id == MeterId);
+
+        if (meter is null)
+            _error = "Счётчик не найден.";
+        else
+            _meterInfo = meter.ServiceType?.Name;
+
+        _loading = false;
+    }
+
+    private void OnFileChanged(InputFileChangeEventArgs e)
+    {
+        _error = null;
+        _rawText = null;
+        _model.Value = "";
+
+        _file = e.File;
+        _fileName = _file.Name;
+        _fileSizeKb = _file.Size / 1024;
+    }
+
+    private static DateOnly NormalizeMonth(DateTime dt) => new(dt.Year, dt.Month, 1);
+
+    private async Task RecognizeAsync()
+    {
+        _busy = true;
+        _error = null;
+        _rawText = null;
+
+        try
+        {
+            if (_file is null)
+            {
+                _error = "Выбери фото.";
+                return;
+            }
+
+            // ✅ Быстрый фикс: HttpClient создаём тут и задаём BaseAddress
+            using var http = new HttpClient { BaseAddress = new Uri(Nav.BaseUri) };
+
+            using var content = new MultipartFormDataContent();
+
+            await using var stream = _file.OpenReadStream(maxAllowedSize: 6 * 1024 * 1024);
+            var fileContent = new StreamContent(stream);
+            fileContent.Headers.ContentType = new MediaTypeHeaderValue(_file.ContentType);
+
+            content.Add(fileContent, "file", _file.Name);
+
+            // ВАЖНО: без ведущего "/"
+            var resp = await http.PostAsync("api/ocr/meter", content);
+
+            if (!resp.IsSuccessStatusCode)
+            {
+                _error = "OCR ошибка: " + await resp.Content.ReadAsStringAsync();
+                return;
+            }
+
+            var dto = await resp.Content.ReadFromJsonAsync<OcrResp>();
+            _rawText = dto?.rawText;
+
+            _model.Value = dto?.value ?? "";
+            if (string.IsNullOrWhiteSpace(_model.Value))
+                _error = "Не удалось распознать число. Попробуй другое фото или введи вручную.";
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        _error = null;
+
+        try
+        {
+            if (MeterId <= 0)
+            {
+                _error = "meterId не задан.";
+                return;
+            }
+
+            var period = NormalizeMonth(_model.Month);
+
+            var normalized = (_model.Value ?? "").Trim().Replace(',', '.');
+            if (!decimal.TryParse(normalized, NumberStyles.Number, CultureInfo.InvariantCulture, out var value))
+            {
+                _error = "Значение не похоже на число. Исправь вручную.";
+                return;
+            }
+
+            await using var db = await DbFactory.CreateDbContextAsync();
+
+            var exists = await db.MeterReadings.AsNoTracking()
+                .AnyAsync(r => r.MeterId == MeterId && r.ReadingDate == period);
+
+            if (exists)
+            {
+                _error = "Показание за этот месяц уже существует.";
+                return;
+            }
+
+            db.MeterReadings.Add(new MeterReading
+            {
+                MeterId = MeterId,
+                ReadingDate = period,
+                Value = value,
+                EnteredAt = DateTime.UtcNow
+            });
+
+            await db.SaveChangesAsync();
+            Nav.NavigateTo(BackUrl);
+        }
+        catch (DbUpdateException)
+        {
+            _error = "Не удалось сохранить (возможно дубликат за месяц).";
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class OcrResp
+    {
+        public string? rawText { get; set; }
+        public string? value { get; set; }
+    }
+}

@@ -1,6 +1,8 @@
 ﻿using JKH.Components;
 using JKH.Components.Account;
 using JKH.Data;
+using Tesseract;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -30,6 +32,8 @@ builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
 
 builder.Services.AddQuickGridEntityFrameworkAdapter();
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
+
+builder.Services.AddHttpClient();
 
 builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.RequireConfirmedAccount = false)
     .AddEntityFrameworkStores<ApplicationDbContext>()
@@ -63,5 +67,57 @@ app.MapRazorComponents<App>()
 
 // Add additional endpoints required by the Identity /Account Razor components.
 app.MapAdditionalIdentityEndpoints();
+
+
+app.MapPost("/api/ocr/meter", async (HttpRequest request) =>
+{
+    // 1. Проверяем, что пришёл multipart/form-data
+    if (!request.HasFormContentType)
+        return Results.BadRequest("Expected multipart/form-data.");
+
+    // 2. Читаем форму
+    var form = await request.ReadFormAsync();
+    var file = form.Files["file"];
+
+    if (file is null || file.Length == 0)
+        return Results.BadRequest("Файл не передан.");
+
+    // 3. Ограничение размера (6 МБ)
+    if (file.Length > 6 * 1024 * 1024)
+        return Results.BadRequest("Файл слишком большой (макс. 6 МБ).");
+
+    // 4. Читаем файл в память
+    await using var ms = new MemoryStream();
+    await file.CopyToAsync(ms);
+    var bytes = ms.ToArray();
+
+    // 5. Инициализируем Tesseract
+    // ВАЖНО: папка tessdata должна быть рядом с exe (bin/Debug/netX.X/)
+    using var engine = new TesseractEngine("./tessdata", "eng", EngineMode.Default);
+
+    // 6. Ограничиваем символы — только цифры
+    engine.SetVariable("tessedit_char_whitelist", "0123456789.,");
+    engine.SetVariable("user_defined_dpi", "300");
+
+    // 7. OCR
+    using var img = Pix.LoadFromMemory(bytes);
+    using var page = engine.Process(img, PageSegMode.SingleLine);
+    var text = (page.GetText() ?? "").Trim();
+
+    // 8. Вытаскиваем первое число
+    var match = Regex.Match(text.Replace(" ", ""), @"\d+(?:[.,]\d+)?");
+    var raw = match.Success ? match.Value : "";
+
+    // нормализуем десятичный разделитель
+    var value = raw.Replace(',', '.');
+
+    // 9. Возвращаем JSON
+    return Results.Ok(new
+    {
+        rawText = text,
+        value
+    });
+});
+
 
 app.Run();

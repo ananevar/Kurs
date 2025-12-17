@@ -1,0 +1,49 @@
+@page "/admin/users/details/{Id}"
+@using Microsoft.AspNetCore.Identity
+@using JKH.Data
+@inject UserManager<ApplicationUser> UserManager
+
+<PageTitle>Пользователь</PageTitle>
+
+<h1>Пользователь</h1>
+
+@if (user is null)
+{
+    <p>Не найден.</p>
+}
+else
+{
+    <dl class="row">
+        <dt class="col-sm-3">Id</dt>
+        <dd class="col-sm-9">@user.Id</dd>
+
+        <dt class="col-sm-3">Email</dt>
+        <dd class="col-sm-9">@user.Email</dd>
+
+        <dt class="col-sm-3">UserName</dt>
+        <dd class="col-sm-9">@user.UserName</dd>
+
+        <dt class="col-sm-3">Телефон</dt>
+        <dd class="col-sm-9">@user.PhoneNumber</dd>
+
+        <dt class="col-sm-3">Email подтверждён</dt>
+        <dd class="col-sm-9">@user.EmailConfirmed</dd>
+
+        <dt class="col-sm-3">LockoutEnd</dt>
+        <dd class="col-sm-9">@user.LockoutEnd</dd>
+    </dl>
+
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" href="/admin/users">Назад</a>
+        <a class="btn btn-outline-warning" href="/admin/users/edit/@user.Id">Изменить</a>
+        <a class="btn btn-outline-danger" href="/admin/users/delete/@user.Id">Удалить</a>
+    </div>
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+    private ApplicationUser? user;
+
+    protected override async Task OnParametersSetAsync()
+        => user = await UserManager.FindByIdAsync(Id);
+}
